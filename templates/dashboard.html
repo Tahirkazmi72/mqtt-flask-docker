@@ -3,20 +3,27 @@
 <head>
   <title>Bike Dashboard with Map</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <!-- Leaflet Map -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; }
     canvas { margin-bottom: 50px; }
-    h2 { margin-top: 60px; color: #333; }
-    #map { height: 400px; margin-top: 50px; border: 1px solid #ccc; }
+    h2 { margin-top: 40px; color: #333; }
+    #map { height: 400px; margin-top: 30px; border: 1px solid #ccc; }
+    .toggle-controls { margin-bottom: 20px; }
+    .toggle-controls label { margin-right: 15px; font-weight: bold; }
+    button { margin-top: 20px; padding: 10px 20px; font-size: 16px; }
   </style>
 </head>
 <body>
   <h1>📊 Bike Telemetry Dashboard</h1>
+
+  <div class="toggle-controls">
+    <label><input type="checkbox" checked onchange="toggleChart('batteryChart')"> Battery</label>
+    <label><input type="checkbox" checked onchange="toggleChart('speedChart')"> Speed</label>
+    <label><input type="checkbox" checked onchange="toggleChart('ridingChart')"> Riding</label>
+    <label><input type="checkbox" checked onchange="toggleChart('lockChart')"> Lock Status</label>
+  </div>
 
   <h2>Battery Level (%)</h2>
   <canvas id="batteryChart" width="1000" height="300"></canvas>
@@ -30,112 +37,114 @@
   <h2>Lock Status</h2>
   <canvas id="lockChart" width="1000" height="300"></canvas>
 
-  <h2>📍 Travel Path & Lock Events</h2>
+  <h2>📍 Map with Trail and Lock Events</h2>
   <div id="map"></div>
 
+  <button onclick="loadDashboard()">🔄 Refresh Now</button>
+
   <script>
-    fetch("/data")
-      .then(res => res.json())
-      .then(data => {
-        // === Filter bike/lock messages and enforce 10-minute interval ===
-        const lockData = data.filter(item =>
-          item.topic === "bike/lock" &&
-          item.payload.battery !== undefined &&
-          item.payload.timestamp
-        );
+    let mapInitialized = false;
+    let map, bikeMarker, pathLine;
 
-        const filtered = [];
-        let lastTimestamp = 0;
+    function toggleChart(id) {
+      const el = document.getElementById(id);
+      el.style.display = el.style.display === "none" ? "block" : "none";
+    }
 
-        lockData.forEach(item => {
-          const ts = new Date(item.payload.timestamp).getTime();
-          if (ts - lastTimestamp >= 10 * 60 * 1000) { // 10 minutes
-            filtered.push(item);
-            lastTimestamp = ts;
-          }
-        });
+    function loadDashboard() {
+      fetch("/data")
+        .then(res => res.json())
+        .then(data => {
+          // === CHART DATA FILTER ===
+          const lockData = data.filter(item =>
+            item.topic === "bike/lock" &&
+            item.payload.battery !== undefined &&
+            item.payload.timestamp
+          );
 
-        const labels = filtered.map(item =>
-          new Date(item.payload.timestamp).toLocaleString()
-        );
-        const battery = filtered.map(item => item.payload.battery);
-        const speed = filtered.map(item => item.payload.speed);
-        const riding = filtered.map(item => item.payload.riding_mileage);
-        const lockStatus = filtered.map(item =>
-          item.payload.lock_status === "Unlocked" ? 1 : 0
-        );
+          const filtered = [];
+          let lastTimestamp = 0;
 
-        const baseOptions = {
-          responsive: true,
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            legend: { position: 'top' },
-            tooltip: {
-              callbacks: {
-                title: items => `Time: ${items[0].label}`
-              }
+          lockData.forEach(item => {
+            const ts = new Date(item.payload.timestamp).getTime();
+            if (ts - lastTimestamp >= 10 * 60 * 1000) {
+              filtered.push(item);
+              lastTimestamp = ts;
             }
-          },
-          scales: {
-            x: {
-              title: { display: true, text: 'Timestamp' },
-              ticks: { maxRotation: 45, minRotation: 45 }
+          });
+
+          const labels = filtered.map(item =>
+            new Date(item.payload.timestamp).toLocaleString()
+          );
+          const battery = filtered.map(item => item.payload.battery);
+          const speed = filtered.map(item => item.payload.speed);
+          const riding = filtered.map(item => item.payload.riding_mileage);
+          const lockStatus = filtered.map(item =>
+            item.payload.lock_status === "Unlocked" ? 1 : 0
+          );
+
+          const options = {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: { position: 'top' },
+              tooltip: {
+                callbacks: {
+                  title: items => `Time: ${items[0].label}`
+                }
+              }
             },
-            y: {
-              beginAtZero: true,
-              title: { display: true, text: 'Value' }
-            }
-          }
-        };
-
-        new Chart(document.getElementById('batteryChart'), {
-          type: 'line',
-          data: { labels, datasets: [{ label: 'Battery (%)', data: battery, borderColor: '#2ecc71', fill: false, tension: 0.4 }] },
-          options: baseOptions
-        });
-
-        new Chart(document.getElementById('speedChart'), {
-          type: 'line',
-          data: { labels, datasets: [{ label: 'Speed (km/h)', data: speed, borderColor: '#3498db', fill: false, tension: 0.4 }] },
-          options: baseOptions
-        });
-
-        new Chart(document.getElementById('ridingChart'), {
-          type: 'line',
-          data: { labels, datasets: [{ label: 'Riding Mileage', data: riding, borderColor: '#f39c12', fill: false, tension: 0.4 }] },
-          options: baseOptions
-        });
-
-        new Chart(document.getElementById('lockChart'), {
-          type: 'bar',
-          data: {
-            labels,
-            datasets: [{
-              label: 'Lock Status (1=Unlocked, 0=Locked)',
-              data: lockStatus,
-              backgroundColor: lockStatus.map(v => v === 1 ? '#2ecc71' : '#e74c3c')
-            }]
-          },
-          options: {
-            ...baseOptions,
             scales: {
-              x: baseOptions.scales.x,
-              y: {
-                beginAtZero: true,
-                max: 1,
-                ticks: {
-                  callback: v => v === 1 ? 'Unlocked' : 'Locked'
-                },
-                title: { display: true, text: 'Lock Status' }
+              x: { ticks: { maxRotation: 45, minRotation: 45 } },
+              y: { beginAtZero: true }
+            }
+          };
+
+          new Chart(document.getElementById('batteryChart'), {
+            type: 'line',
+            data: { labels, datasets: [{ label: 'Battery (%)', data: battery, borderColor: '#2ecc71', fill: false, tension: 0.4 }] },
+            options
+          });
+
+          new Chart(document.getElementById('speedChart'), {
+            type: 'line',
+            data: { labels, datasets: [{ label: 'Speed (km/h)', data: speed, borderColor: '#3498db', fill: false, tension: 0.4 }] },
+            options
+          });
+
+          new Chart(document.getElementById('ridingChart'), {
+            type: 'line',
+            data: { labels, datasets: [{ label: 'Riding Mileage', data: riding, borderColor: '#f39c12', fill: false, tension: 0.4 }] },
+            options
+          });
+
+          new Chart(document.getElementById('lockChart'), {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Lock Status (1=Unlocked, 0=Locked)',
+                data: lockStatus,
+                backgroundColor: lockStatus.map(v => v === 1 ? '#2ecc71' : '#e74c3c')
+              }]
+            },
+            options: {
+              ...options,
+              scales: {
+                ...options.scales,
+                y: {
+                  beginAtZero: true,
+                  max: 1,
+                  ticks: {
+                    callback: v => v === 1 ? 'Unlocked' : 'Locked'
+                  }
+                }
               }
             }
-          }
-        });
+          });
 
-        // === MAP: Show bike path and lock/unlock markers ===
-        const locations = data
-          .filter(d => d.topic === "bike/location")
-          .map(d => {
+          // === MAP SETUP ===
+          const locations = data.filter(d => d.topic === "bike/location").map(d => {
             const p = d.payload;
             return {
               lat: p.lat || (p.coordinates ? p.coordinates[1] : null),
@@ -144,63 +153,64 @@
             };
           }).filter(p => p.lat && p.lon);
 
-        if (locations.length > 0) {
-          const latest = locations[locations.length - 1];
-          const map = L.map('map').setView([latest.lat, latest.lon], 16);
+          if (!mapInitialized && locations.length > 0) {
+            const latest = locations[locations.length - 1];
+            map = L.map('map').setView([latest.lat, latest.lon], 16);
+            mapInitialized = true;
 
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors'
-          }).addTo(map);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
 
-          // 🚲 bike icon
-          const bikeIcon = L.icon({
-            iconUrl: "https://cdn-icons-png.flaticon.com/512/747/747376.png",
-            iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -10]
+            const bikeIcon = L.icon({
+              iconUrl: "https://cdn-icons-png.flaticon.com/512/747/747376.png",
+              iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -10]
+            });
+
+            bikeMarker = L.marker([latest.lat, latest.lon], { icon: bikeIcon }).addTo(map)
+              .bindPopup(`🚲 Latest Location<br>🕓 ${new Date(latest.time).toLocaleString()}`)
+              .openPopup();
+
+            const path = locations.map(p => [p.lat, p.lon]);
+            pathLine = L.polyline(path, { color: 'blue', weight: 4, opacity: 0.7 }).addTo(map);
+          }
+
+          // === LOCK/UNLOCK MARKERS ON MAP ===
+          const lockEvents = data.filter(item =>
+            item.topic === "bike/lock" &&
+            item.payload.lock_status &&
+            (item.payload.lat || (item.payload.coordinates && item.payload.coordinates.length === 2))
+          ).map(item => {
+            const p = item.payload;
+            return {
+              lat: p.lat || (p.coordinates ? p.coordinates[1] : null),
+              lon: p.lon || (p.coordinates ? p.coordinates[0] : null),
+              status: p.lock_status,
+              time: p.timestamp
+            };
           });
 
-          L.marker([latest.lat, latest.lon], { icon: bikeIcon })
-            .addTo(map)
-            .bindPopup(`🚲 Latest Location<br>🕓 ${new Date(latest.time).toLocaleString()}`)
-            .openPopup();
+          lockEvents.forEach(event => {
+            const icon = L.icon({
+              iconUrl: event.status === "Unlocked"
+                ? "https://cdn-icons-png.flaticon.com/512/61/61457.png"
+                : "https://cdn-icons-png.flaticon.com/512/565/565547.png",
+              iconSize: [24, 24], iconAnchor: [12, 12]
+            });
 
-          // Trail
-          const path = locations.map(p => [p.lat, p.lon]);
-          L.polyline(path, { color: 'blue', weight: 4, opacity: 0.7 }).addTo(map);
-        }
-
-        // === Lock/Unlock markers (if they have lat/lon) ===
-        const lockEvents = data.filter(item =>
-          item.topic === "bike/lock" &&
-          item.payload.lock_status &&
-          (item.payload.lat || (item.payload.coordinates && item.payload.coordinates.length === 2))
-        ).map(item => {
-          const p = item.payload;
-          return {
-            lat: p.lat || (p.coordinates ? p.coordinates[1] : null),
-            lon: p.lon || (p.coordinates ? p.coordinates[0] : null),
-            status: p.lock_status,
-            time: p.timestamp
-          };
-        });
-
-        lockEvents.forEach(event => {
-          const icon = L.icon({
-            iconUrl: event.status === "Unlocked"
-              ? "https://cdn-icons-png.flaticon.com/512/61/61457.png"
-              : "https://cdn-icons-png.flaticon.com/512/565/565547.png",
-            iconSize: [24, 24], iconAnchor: [12, 12]
+            L.marker([event.lat, event.lon], { icon })
+              .addTo(map)
+              .bindPopup(`${event.status} @ ${new Date(event.time).toLocaleString()}`);
           });
-
-          L.marker([event.lat, event.lon], { icon })
-            .addTo(map)
-            .bindPopup(`${event.status} @ ${new Date(event.time).toLocaleString()}`);
+        })
+        .catch(err => {
+          console.error("Dashboard error:", err);
+          document.body.innerHTML += "<p style='color:red;'>Failed to load data.</p>";
         });
+    }
 
-      })
-      .catch(err => {
-        console.error("Dashboard error:", err);
-        document.body.innerHTML += "<p style='color:red;'>Failed to load data.</p>";
-      });
+    loadDashboard();
+    setInterval(loadDashboard, 60000); // auto-refresh every 60 seconds
   </script>
 </body>
 </html>
