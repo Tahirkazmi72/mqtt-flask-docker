@@ -7,17 +7,36 @@ import paho.mqtt.client as mqtt
 app = Flask(__name__)
 DATA_FILE = "data.json"
 MQTT_BROKER = "broker.emqx.io"
-MQTT_TOPIC = "bike/lock"   # <-- Yahan apna MQTT topic likh do
+MQTT_TOPIC = "bike/#"   # All bike data (lock + location)
 
 # MQTT callback
 def on_message(client, userdata, msg):
-    print("Received message:", msg.topic, msg.payload)   # <-- Debug print
     try:
         data = json.loads(msg.payload)
-    except:
+    except Exception as e:
+        print("JSON error:", e)
         data = {"value": msg.payload.decode()}
+
+    # Message meta info: topic + timestamp
+    record = {
+        "topic": msg.topic,
+        "payload": data
+    }
+
+    # Append new data to list
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE) as f:
+            try:
+                old_data = json.load(f)
+            except:
+                old_data = []
+    else:
+        old_data = []
+
+    old_data.append(record)
+
     with open(DATA_FILE, "w") as f:
-        json.dump(data, f)
+        json.dump(old_data, f)
 
 def mqtt_listen():
     client = mqtt.Client()
