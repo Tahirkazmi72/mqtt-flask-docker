@@ -22,6 +22,11 @@
       margin-top: 50px;
       border: 1px solid #ccc;
     }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin-top: 30px;
+    }
   </style>
 </head>
 <body>
@@ -42,19 +47,30 @@
   <h2>📍 Live Location Map</h2>
   <div id="map"></div>
 
-  <button onclick="exportCSV()" style="margin-top: 20px; padding: 10px 20px; font-size: 16px;">
-    📥 Export CSV
-  </button>
+  <button onclick="exportCSV()">📥 Export CSV</button>
 
   <script>
     let filteredData = [];
 
-    fetch("/data")
-      .then(res => res.json())
-      .then(data => {
+    async function loadDashboard() {
+      try {
+        const response = await fetch("/data");
+        if (!response.ok) throw new Error(`Server returned ${response.status}`);
+        const data = await response.json();
+
+        if (!Array.isArray(data) || data.length === 0) {
+          throw new Error("No data received or data is not in expected format.");
+        }
+
         filteredData = data.filter(item =>
-          item.topic === "bike/lock" && item.payload.battery !== undefined
+          item.topic === "bike/lock" &&
+          item.payload &&
+          typeof item.payload.battery === "number"
         );
+
+        if (filteredData.length === 0) {
+          throw new Error("No valid 'bike/lock' data with battery found.");
+        }
 
         const labels = filteredData.map(item => {
           const ts = item.payload.timestamp || new Date().toISOString();
@@ -162,25 +178,27 @@
           }
         });
 
+        // ========== MAP SETUP ==========
         const locations = data
-          .filter(item => item.topic === "bike/location")
+          .filter(item => item.topic === "bike/location" && item.payload)
           .map(item => {
             const p = item.payload;
-            return {
-              lat: p.lat || (p.coordinates ? p.coordinates[1] : null),
-              lon: p.lon || (p.coordinates ? p.coordinates[0] : null),
-              time: p.timestamp
-            };
+            const lat = p.lat ?? (Array.isArray(p.coordinates) ? p.coordinates[1] : null);
+            const lon = p.lon ?? (Array.isArray(p.coordinates) ? p.coordinates[0] : null);
+            const time = p.timestamp || new Date().toISOString();
+            return { lat, lon, time };
           })
-          .filter(loc => loc.lat && loc.lon);
+          .filter(loc => typeof loc.lat === "number" && typeof loc.lon === "number");
 
         if (locations.length > 0) {
           const latest = locations[locations.length - 1];
+          const mapContainer = document.getElementById("map");
+          mapContainer.innerHTML = ""; // clear old map if reloaded
 
-          const map = L.map('map').setView([latest.lat, latest.lon], 16);
+          const map = L.map("map").setView([latest.lat, latest.lon], 16);
 
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors'
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "&copy; OpenStreetMap contributors"
           }).addTo(map);
 
           const bikeIcon = L.icon({
@@ -198,11 +216,12 @@
           const path = locations.map(loc => [loc.lat, loc.lon]);
           L.polyline(path, { color: 'blue', weight: 4, opacity: 0.7 }).addTo(map);
         }
-      })
-      .catch(err => {
+
+      } catch (err) {
         console.error("Error loading charts or map:", err);
-        document.body.innerHTML += "<p style='color:red;'>Failed to load data.</p>";
-      });
+        document.body.innerHTML += `<p style='color:red;'>Failed to load data: ${err.message}</p>`;
+      }
+    }
 
     function exportCSV() {
       if (!filteredData || filteredData.length === 0) {
@@ -212,7 +231,7 @@
 
       const headers = ["Timestamp", "Battery", "Speed", "Riding Mileage", "Lock Status"];
       const rows = filteredData.map(item => [
-        item.payload.timestamp,
+        item.payload.timestamp || "",
         item.payload.battery,
         item.payload.speed,
         item.payload.riding_mileage,
@@ -231,6 +250,8 @@
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }
+
+    loadDashboard();
   </script>
 </body>
 </html>
