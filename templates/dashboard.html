@@ -1,35 +1,48 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Bike Telemetry Dashboard</title>
+  <title>Bike Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    canvas {
+      margin-bottom: 50px;
+    }
+    h2 {
+      margin-top: 60px;
+      color: #333;
+    }
+  </style>
 </head>
-<body style="font-family: Arial, sans-serif; padding: 20px;">
-  <h2>Battery Level</h2>
-  <canvas id="batteryChart" width="800" height="200"></canvas>
+<body>
+  <h1>📊 Bike Telemetry Dashboard</h1>
 
-  <h2>Speed</h2>
-  <canvas id="speedChart" width="800" height="200"></canvas>
+  <h2>Battery Level (%)</h2>
+  <canvas id="batteryChart" width="1000" height="300"></canvas>
+
+  <h2>Speed (km/h)</h2>
+  <canvas id="speedChart" width="1000" height="300"></canvas>
 
   <h2>Riding Mileage</h2>
-  <canvas id="ridingChart" width="800" height="200"></canvas>
+  <canvas id="ridingChart" width="1000" height="300"></canvas>
 
-  <h2>Lock Status</h2>
-  <canvas id="lockChart" width="800" height="200"></canvas>
+  <h2>Lock Status (🔒 = Locked, 🔓 = Unlocked)</h2>
+  <canvas id="lockChart" width="1000" height="300"></canvas>
 
   <script>
     fetch("/data")
       .then(res => res.json())
       .then(data => {
         const filtered = data.filter(item =>
-          item.topic === "bike/lock" &&
-          item.payload.battery !== undefined &&
-          item.payload.timestamp !== undefined
+          item.topic === "bike/lock" && item.payload.battery !== undefined
         );
 
         const labels = filtered.map(item => {
           const ts = item.payload.timestamp || new Date().toISOString();
-          return new Date(ts).toLocaleString(); // format timestamp
+          return new Date(ts).toLocaleString();
         });
 
         const battery = filtered.map(item => item.payload.battery);
@@ -39,36 +52,34 @@
           item.payload.lock_status === "Unlocked" ? 1 : 0
         );
 
-        const chartOptions = {
-          type: 'line',
-          options: {
-            responsive: true,
-            interaction: { mode: 'index', intersect: false },
-            plugins: {
-              legend: { position: 'top' },
-              tooltip: {
-                callbacks: {
-                  title: (tooltipItems) => `Time: ${tooltipItems[0].label}`
-                }
+        const baseOptions = {
+          responsive: true,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { position: 'top' },
+            tooltip: {
+              callbacks: {
+                title: items => `Time: ${items[0].label}`
               }
+            }
+          },
+          scales: {
+            x: {
+              title: { display: true, text: 'Timestamp' },
+              ticks: { maxRotation: 45, minRotation: 45 }
             },
-            scales: {
-              x: {
-                title: { display: true, text: 'Timestamp' },
-                ticks: { maxRotation: 45, minRotation: 45 }
-              },
-              y: {
-                beginAtZero: true
-              }
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: 'Value' }
             }
           }
         };
 
         // Battery Chart
         new Chart(document.getElementById('batteryChart'), {
-          ...chartOptions,
+          type: 'line',
           data: {
-            labels: labels,
+            labels,
             datasets: [{
               label: 'Battery (%)',
               data: battery,
@@ -76,14 +87,15 @@
               fill: false,
               tension: 0.4
             }]
-          }
+          },
+          options: baseOptions
         });
 
         // Speed Chart
         new Chart(document.getElementById('speedChart'), {
-          ...chartOptions,
+          type: 'line',
           data: {
-            labels: labels,
+            labels,
             datasets: [{
               label: 'Speed (km/h)',
               data: speed,
@@ -91,14 +103,15 @@
               fill: false,
               tension: 0.4
             }]
-          }
+          },
+          options: baseOptions
         });
 
         // Riding Mileage
         new Chart(document.getElementById('ridingChart'), {
-          ...chartOptions,
+          type: 'line',
           data: {
-            labels: labels,
+            labels,
             datasets: [{
               label: 'Riding Mileage',
               data: riding,
@@ -106,51 +119,42 @@
               fill: false,
               tension: 0.4
             }]
-          }
+          },
+          options: baseOptions
         });
 
-        // Lock Status
+        // Lock Status (0 = Locked, 1 = Unlocked)
         new Chart(document.getElementById('lockChart'), {
           type: 'bar',
           data: {
-            labels: labels,
+            labels,
             datasets: [{
-              label: 'Lock Status (1 = Unlocked, 0 = Locked)',
+              label: 'Lock Status',
               data: lockStatus,
               backgroundColor: lockStatus.map(v => v === 1 ? '#2ecc71' : '#e74c3c')
             }]
           },
           options: {
-            responsive: true,
-            plugins: {
-              legend: { position: 'top' },
-              tooltip: {
-                callbacks: {
-                  label: ctx =>
-                    ctx.raw === 1 ? 'Unlocked' : 'Locked',
-                  title: (tooltipItems) => `Time: ${tooltipItems[0].label}`
-                }
-              }
-            },
+            ...baseOptions,
             scales: {
+              x: baseOptions.scales.x,
               y: {
                 beginAtZero: true,
                 max: 1,
                 ticks: {
-                  callback: value => value === 1 ? 'Unlocked' : 'Locked'
-                }
-              },
-              x: {
-                ticks: {
-                  maxRotation: 45,
-                  minRotation: 45
-                }
+                  callback: v => v === 1 ? 'Unlocked' : 'Locked'
+                },
+                title: { display: true, text: 'Lock Status' }
               }
             }
           }
         });
+
       })
-      .catch(err => console.error("Chart error:", err));
+      .catch(err => {
+        console.error("Chart error:", err);
+        document.body.innerHTML += "<p style='color:red;'>Failed to load charts.</p>";
+      });
   </script>
 </body>
 </html>
