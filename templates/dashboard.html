@@ -26,6 +26,7 @@
       padding: 10px 20px;
       font-size: 16px;
       margin-top: 30px;
+      cursor: pointer;
     }
   </style>
 </head>
@@ -47,7 +48,7 @@
   <h2>📍 Live Location Map</h2>
   <div id="map"></div>
 
-  <button onclick="exportCSV()">📥 Export CSV</button>
+  <button onclick="exportCSV()">📥 Export CSV with Location</button>
 
   <script>
     let filteredData = [];
@@ -178,7 +179,7 @@
           }
         });
 
-        // ========== MAP SETUP ==========
+        // ========== MAP ==========
         const locations = data
           .filter(item => item.topic === "bike/location" && item.payload)
           .map(item => {
@@ -193,10 +194,9 @@
         if (locations.length > 0) {
           const latest = locations[locations.length - 1];
           const mapContainer = document.getElementById("map");
-          mapContainer.innerHTML = ""; // clear old map if reloaded
+          mapContainer.innerHTML = "";
 
           const map = L.map("map").setView([latest.lat, latest.lon], 16);
-
           L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
             attribution: "&copy; OpenStreetMap contributors"
           }).addTo(map);
@@ -229,14 +229,27 @@
         return;
       }
 
-      const headers = ["Timestamp", "Battery", "Speed", "Riding Mileage", "Lock Status"];
-      const rows = filteredData.map(item => [
-        item.payload.timestamp || "",
-        item.payload.battery,
-        item.payload.speed,
-        item.payload.riding_mileage,
-        item.payload.lock_status
-      ].join(","));
+      const headers = [
+        "Timestamp",
+        "Battery",
+        "Speed",
+        "Riding Mileage",
+        "Lock Status",
+        "Latitude",
+        "Longitude"
+      ];
+
+      const rows = filteredData.map(item => {
+        const p = item.payload;
+        const ts = p.timestamp ? new Date(p.timestamp).toISOString() : "";
+        const battery = p.battery ?? "";
+        const speed = p.speed ?? "";
+        const riding = p.riding_mileage ?? "";
+        const status = p.lock_status ?? "";
+        const lat = p.lat ?? (Array.isArray(p.coordinates) ? p.coordinates[1] : "");
+        const lon = p.lon ?? (Array.isArray(p.coordinates) ? p.coordinates[0] : "");
+        return [ts, battery, speed, riding, status, lat, lon].join(",");
+      });
 
       const csvContent = [headers.join(","), ...rows].join("\n");
       const blob = new Blob([csvContent], { type: "text/csv" });
@@ -244,7 +257,7 @@
 
       const a = document.createElement("a");
       a.href = url;
-      a.download = "bike_data.csv";
+      a.download = "bike_data_with_location.csv";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
