@@ -1,8 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Bike Dashboard</title>
+  <title>Bike Dashboard with Map</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Leaflet for map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -14,6 +19,11 @@
     h2 {
       margin-top: 60px;
       color: #333;
+    }
+    #map {
+      height: 400px;
+      margin-top: 50px;
+      border: 1px solid #ccc;
     }
   </style>
 </head>
@@ -31,6 +41,9 @@
 
   <h2>Lock Status (🔒 = Locked, 🔓 = Unlocked)</h2>
   <canvas id="lockChart" width="1000" height="300"></canvas>
+
+  <h2>📍 Latest Location</h2>
+  <div id="map"></div>
 
   <script>
     fetch("/data")
@@ -75,7 +88,6 @@
           }
         };
 
-        // Battery Chart
         new Chart(document.getElementById('batteryChart'), {
           type: 'line',
           data: {
@@ -91,7 +103,6 @@
           options: baseOptions
         });
 
-        // Speed Chart
         new Chart(document.getElementById('speedChart'), {
           type: 'line',
           data: {
@@ -107,7 +118,6 @@
           options: baseOptions
         });
 
-        // Riding Mileage
         new Chart(document.getElementById('ridingChart'), {
           type: 'line',
           data: {
@@ -123,13 +133,12 @@
           options: baseOptions
         });
 
-        // Lock Status (0 = Locked, 1 = Unlocked)
         new Chart(document.getElementById('lockChart'), {
           type: 'bar',
           data: {
             labels,
             datasets: [{
-              label: 'Lock Status',
+              label: 'Lock Status (1=Unlocked, 0=Locked)',
               data: lockStatus,
               backgroundColor: lockStatus.map(v => v === 1 ? '#2ecc71' : '#e74c3c')
             }]
@@ -150,10 +159,38 @@
           }
         });
 
+        // ====== MAP SECTION ======
+        const locations = data
+          .filter(item => item.topic === "bike/location")
+          .map(item => {
+            const p = item.payload;
+            return {
+              lat: p.lat || (p.coordinates ? p.coordinates[1] : null),
+              lon: p.lon || (p.coordinates ? p.coordinates[0] : null),
+              time: p.timestamp
+            };
+          }).filter(loc => loc.lat && loc.lon);
+
+        if (locations.length > 0) {
+          const latest = locations[locations.length - 1];
+          const map = L.map('map').setView([latest.lat, latest.lon], 16);
+
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+          }).addTo(map);
+
+          L.marker([latest.lat, latest.lon])
+            .addTo(map)
+            .bindPopup(`🕓 ${new Date(latest.time).toLocaleString()}`)
+            .openPopup();
+
+          const path = locations.map(loc => [loc.lat, loc.lon]);
+          L.polyline(path, { color: 'blue' }).addTo(map);
+        }
       })
       .catch(err => {
-        console.error("Chart error:", err);
-        document.body.innerHTML += "<p style='color:red;'>Failed to load charts.</p>";
+        console.error("Error loading charts or map:", err);
+        document.body.innerHTML += "<p style='color:red;'>Failed to load data.</p>";
       });
   </script>
 </body>
