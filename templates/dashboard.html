@@ -1,45 +1,52 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Bike Battery Dashboard</title>
+  <title>Bike Battery Chart</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <h2>Battery Level (Live)</h2>
-  <canvas id="batteryChart" width="600" height="300"></canvas>
+  <h2>Battery Level Chart</h2>
+  <canvas id="batteryChart" width="800" height="400"></canvas>
 
   <script>
     fetch("/data")
       .then(res => res.json())
       .then(data => {
         const batteryData = data
-          .filter(d => d.topic === "bike/lock" && d.payload.battery !== undefined)
-          .map((d, i) => ({
-            time: `T${i}`,
-            battery: d.payload.battery
+          .filter(item => item.topic === "bike/lock" && item.payload.battery !== undefined)
+          .map((item, index) => ({
+            label: `T${index}`,
+            battery: item.payload.battery
           }));
 
-        const labels = batteryData.map(d => d.time);
+        const labels = batteryData.map(d => d.label);
         const values = batteryData.map(d => d.battery);
 
-        new Chart(document.getElementById('batteryChart'), {
+        const ctx = document.getElementById('batteryChart').getContext('2d');
+        new Chart(ctx, {
           type: 'line',
           data: {
             labels: labels,
             datasets: [{
-              label: 'Battery (%)',
+              label: 'Battery Level (%)',
               data: values,
-              borderColor: 'green',
-              borderWidth: 2,
-              fill: false
+              borderColor: 'blue',
+              backgroundColor: 'lightblue',
+              tension: 0.3,
+              fill: true
             }]
           },
           options: {
-            responsive: true
+            responsive: true,
+            scales: {
+              y: {
+                beginAtZero: true,
+                max: 100
+              }
+            }
           }
         });
       });
   </script>
 </body>
 </html>
-
