@@ -1,41 +1,123 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Battery Chart</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body>
-  <h2>Battery Level Chart</h2>
-  <canvas id="batteryChart" width="800" height="400"></canvas>
+<script>
+fetch("/data")
+  .then(res => res.json())
+  .then(data => {
+    const filtered = data.filter(item => item.topic === "bike/lock" && item.payload.battery !== undefined);
 
-  <script>
-    fetch("/data")
-      .then(res => res.json())
-      .then(data => {
-        const batteryData = data
-          .filter(item => item.topic === "bike/lock" && item.payload.battery !== undefined)
-          .map((item, i) => ({
-            label: `T${i}`,
-            battery: item.payload.battery
-          }));
+    const labels = filtered.map((item, i) => `T${i}`);
+    const battery = filtered.map(item => item.payload.battery);
+    const speed = filtered.map(item => item.payload.speed);
+    const riding = filtered.map(item => item.payload.riding_mileage);
+    const remaining = filtered.map(item => item.payload.remaining_mileage);
 
-        const labels = batteryData.map(d => d.label);
-        const values = batteryData.map(d => d.battery);
-
-        new Chart(document.getElementById('batteryChart'), {
-          type: 'line',
-          data: {
-            labels: labels,
-            datasets: [{
-              label: 'Battery (%)',
-              data: values,
-              borderColor: 'green',
-              borderWidth: 2,
-              fill: false
-            }]
+    new Chart(document.getElementById('batteryChart'), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Battery (%)',
+            data: battery,
+            borderColor: '#2ecc71',
+            backgroundColor: '#2ecc71',
+            pointRadius: 2,
+            borderWidth: 2,
+            fill: false,
+            tension: 0.4
+          },
+          {
+            label: 'Speed (km/h)',
+            data: speed,
+            borderColor: '#3498db',
+            backgroundColor: '#3498db',
+            pointRadius: 2,
+            borderWidth: 2,
+            fill: false,
+            tension: 0.4
+          },
+          {
+            label: 'Riding Mileage',
+            data: riding,
+            borderColor: '#f39c12',
+            backgroundColor: '#f39c12',
+            pointRadius: 2,
+            borderWidth: 2,
+            fill: false,
+            tension: 0.4
+          },
+          {
+            label: 'Remaining Mileage',
+            data: remaining,
+            borderColor: '#e74c3c',
+            backgroundColor: '#e74c3c',
+            pointRadius: 2,
+            borderWidth: 2,
+            fill: false,
+            tension: 0.4
           }
-        });
-      });
-  </script>
-</body>
-</html>
+        ]
+      },
+      options: {
+        responsive: true,
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              font: {
+                size: 14
+              }
+            }
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            callbacks: {
+              label: function(context) {
+                return `${context.dataset.label}: ${context.formattedValue}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            display: true,
+            title: {
+              display: true,
+              text: 'Time',
+              font: {
+                size: 14
+              }
+            },
+            ticks: {
+              font: {
+                size: 12
+              }
+            }
+          },
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Value',
+              font: {
+                size: 14
+              }
+            },
+            ticks: {
+              font: {
+                size: 12
+              }
+            },
+            grid: {
+              color: 'rgba(0,0,0,0.1)'
+            }
+          }
+        }
+      }
+    });
+  });
+</script>
