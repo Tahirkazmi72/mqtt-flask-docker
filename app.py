@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, render_template
 import threading
 import json
 import os
@@ -7,7 +7,7 @@ import paho.mqtt.client as mqtt
 app = Flask(__name__)
 DATA_FILE = "data.json"
 MQTT_BROKER = "broker.emqx.io"
-MQTT_TOPIC = "bike/#"   # All bike data (lock + location)
+MQTT_TOPIC = "bike/#"  # All bike data (lock + location)
 
 # MQTT callback
 def on_message(client, userdata, msg):
@@ -17,13 +17,11 @@ def on_message(client, userdata, msg):
         print("JSON error:", e)
         data = {"value": msg.payload.decode()}
 
-    # Message meta info: topic + timestamp
     record = {
         "topic": msg.topic,
         "payload": data
     }
 
-    # Append new data to list
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE) as f:
             try:
@@ -45,8 +43,12 @@ def mqtt_listen():
     client.on_message = on_message
     client.loop_forever()
 
-# MQTT background thread
+# Background MQTT thread
 threading.Thread(target=mqtt_listen, daemon=True).start()
+
+@app.route("/")
+def dashboard():
+    return render_template("dashboard.html")
 
 @app.route("/data")
 def get_data():
