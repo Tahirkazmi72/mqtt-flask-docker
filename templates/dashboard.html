@@ -1,1 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Bike Battery Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <h2>Battery Level (Live)</h2>
+  <canvas id="batteryChart" width="600" height="300"></canvas>
+
+  <script>
+    fetch("/data")
+      .then(res => res.json())
+      .then(data => {
+        const batteryData = data
+          .filter(d => d.topic === "bike/lock" && d.payload.battery !== undefined)
+          .map((d, i) => ({
+            time: `T${i}`,
+            battery: d.payload.battery
+          }));
+
+        const labels = batteryData.map(d => d.time);
+        const values = batteryData.map(d => d.battery);
+
+        new Chart(document.getElementById('batteryChart'), {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Battery (%)',
+              data: values,
+              borderColor: 'green',
+              borderWidth: 2,
+              fill: false
+            }]
+          },
+          options: {
+            responsive: true
+          }
+        });
+      });
+  </script>
+</body>
+</html>
 
