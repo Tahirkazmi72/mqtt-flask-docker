@@ -1,123 +1,87 @@
-<script>
-fetch("/data")
-  .then(res => res.json())
-  .then(data => {
-    const filtered = data.filter(item => item.topic === "bike/lock" && item.payload.battery !== undefined);
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Grafana-Style Chart</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <h2>Battery Level Chart</h2>
+  <canvas id="batteryChart" width="800" height="400"></canvas>
 
-    const labels = filtered.map((item, i) => `T${i}`);
-    const battery = filtered.map(item => item.payload.battery);
-    const speed = filtered.map(item => item.payload.speed);
-    const riding = filtered.map(item => item.payload.riding_mileage);
-    const remaining = filtered.map(item => item.payload.remaining_mileage);
+  <!-- Your updated script goes here -->
+  <script>
+    fetch("/data")
+      .then(res => res.json())
+      .then(data => {
+        const filtered = data.filter(item => item.topic === "bike/lock" && item.payload.battery !== undefined);
 
-    new Chart(document.getElementById('batteryChart'), {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: 'Battery (%)',
-            data: battery,
-            borderColor: '#2ecc71',
-            backgroundColor: '#2ecc71',
-            pointRadius: 2,
-            borderWidth: 2,
-            fill: false,
-            tension: 0.4
-          },
-          {
-            label: 'Speed (km/h)',
-            data: speed,
-            borderColor: '#3498db',
-            backgroundColor: '#3498db',
-            pointRadius: 2,
-            borderWidth: 2,
-            fill: false,
-            tension: 0.4
-          },
-          {
-            label: 'Riding Mileage',
-            data: riding,
-            borderColor: '#f39c12',
-            backgroundColor: '#f39c12',
-            pointRadius: 2,
-            borderWidth: 2,
-            fill: false,
-            tension: 0.4
-          },
-          {
-            label: 'Remaining Mileage',
-            data: remaining,
-            borderColor: '#e74c3c',
-            backgroundColor: '#e74c3c',
-            pointRadius: 2,
-            borderWidth: 2,
-            fill: false,
-            tension: 0.4
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        interaction: {
-          mode: 'index',
-          intersect: false
-        },
-        plugins: {
-          legend: {
-            position: 'top',
-            labels: {
-              font: {
-                size: 14
+        const labels = filtered.map((item, i) => `T${i}`);
+        const battery = filtered.map(item => item.payload.battery);
+        const speed = filtered.map(item => item.payload.speed);
+        const riding = filtered.map(item => item.payload.riding_mileage);
+        const remaining = filtered.map(item => item.payload.remaining_mileage);
+
+        const ctx = document.getElementById('batteryChart').getContext('2d');
+
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'Battery (%)',
+                data: battery,
+                borderColor: '#2ecc71',
+                backgroundColor: '#2ecc71',
+                borderWidth: 2,
+                fill: false,
+                tension: 0.4
+              },
+              {
+                label: 'Speed (km/h)',
+                data: speed,
+                borderColor: '#3498db',
+                backgroundColor: '#3498db',
+                borderWidth: 2,
+                fill: false,
+                tension: 0.4
+              },
+              {
+                label: 'Riding Mileage',
+                data: riding,
+                borderColor: '#f39c12',
+                backgroundColor: '#f39c12',
+                borderWidth: 2,
+                fill: false,
+                tension: 0.4
+              },
+              {
+                label: 'Remaining Mileage',
+                data: remaining,
+                borderColor: '#e74c3c',
+                backgroundColor: '#e74c3c',
+                borderWidth: 2,
+                fill: false,
+                tension: 0.4
               }
-            }
+            ]
           },
-          tooltip: {
-            mode: 'index',
-            intersect: false,
-            callbacks: {
-              label: function(context) {
-                return `${context.dataset.label}: ${context.formattedValue}`;
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'top' },
+              tooltip: { mode: 'index', intersect: false }
+            },
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+              y: {
+                beginAtZero: true
               }
             }
           }
-        },
-        scales: {
-          x: {
-            display: true,
-            title: {
-              display: true,
-              text: 'Time',
-              font: {
-                size: 14
-              }
-            },
-            ticks: {
-              font: {
-                size: 12
-              }
-            }
-          },
-          y: {
-            beginAtZero: true,
-            title: {
-              display: true,
-              text: 'Value',
-              font: {
-                size: 14
-              }
-            },
-            ticks: {
-              font: {
-                size: 12
-              }
-            },
-            grid: {
-              color: 'rgba(0,0,0,0.1)'
-            }
-          }
-        }
-      }
-    });
-  });
-</script>
+        });
+      })
+      .catch(err => console.error("Chart load error:", err));
+  </script>
+</body>
+</html>
