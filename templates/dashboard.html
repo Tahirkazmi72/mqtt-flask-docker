@@ -3,11 +3,8 @@
 <head>
   <title>Bike Dashboard with Map</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <!-- Leaflet Map CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -45,24 +42,29 @@
   <h2>📍 Live Location Map</h2>
   <div id="map"></div>
 
+  <button onclick="exportCSV()" style="margin-top: 20px; padding: 10px 20px; font-size: 16px;">
+    📥 Export CSV
+  </button>
+
   <script>
+    let filteredData = [];
+
     fetch("/data")
       .then(res => res.json())
       .then(data => {
-        // ======== CHARTS =========
-        const filtered = data.filter(item =>
+        filteredData = data.filter(item =>
           item.topic === "bike/lock" && item.payload.battery !== undefined
         );
 
-        const labels = filtered.map(item => {
+        const labels = filteredData.map(item => {
           const ts = item.payload.timestamp || new Date().toISOString();
           return new Date(ts).toLocaleString();
         });
 
-        const battery = filtered.map(item => item.payload.battery);
-        const speed = filtered.map(item => item.payload.speed);
-        const riding = filtered.map(item => item.payload.riding_mileage);
-        const lockStatus = filtered.map(item =>
+        const battery = filteredData.map(item => item.payload.battery);
+        const speed = filteredData.map(item => item.payload.speed);
+        const riding = filteredData.map(item => item.payload.riding_mileage);
+        const lockStatus = filteredData.map(item =>
           item.payload.lock_status === "Unlocked" ? 1 : 0
         );
 
@@ -160,7 +162,6 @@
           }
         });
 
-        // ======== MAP ==========
         const locations = data
           .filter(item => item.topic === "bike/location")
           .map(item => {
@@ -182,7 +183,6 @@
             attribution: '&copy; OpenStreetMap contributors'
           }).addTo(map);
 
-          // 🚲 Custom bike icon
           const bikeIcon = L.icon({
             iconUrl: "https://cdn-icons-png.flaticon.com/512/747/747376.png",
             iconSize: [32, 32],
@@ -190,13 +190,11 @@
             popupAnchor: [0, -10]
           });
 
-          // Marker with icon
           L.marker([latest.lat, latest.lon], { icon: bikeIcon })
             .addTo(map)
             .bindPopup(`🚲 Latest Location<br>🕓 ${new Date(latest.time).toLocaleString()}`)
             .openPopup();
 
-          // Polyline trail
           const path = locations.map(loc => [loc.lat, loc.lon]);
           L.polyline(path, { color: 'blue', weight: 4, opacity: 0.7 }).addTo(map);
         }
@@ -205,6 +203,34 @@
         console.error("Error loading charts or map:", err);
         document.body.innerHTML += "<p style='color:red;'>Failed to load data.</p>";
       });
+
+    function exportCSV() {
+      if (!filteredData || filteredData.length === 0) {
+        alert("No data to export.");
+        return;
+      }
+
+      const headers = ["Timestamp", "Battery", "Speed", "Riding Mileage", "Lock Status"];
+      const rows = filteredData.map(item => [
+        item.payload.timestamp,
+        item.payload.battery,
+        item.payload.speed,
+        item.payload.riding_mileage,
+        item.payload.lock_status
+      ].join(","));
+
+      const csvContent = [headers.join(","), ...rows].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "bike_data.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
   </script>
 </body>
 </html>
