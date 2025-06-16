@@ -1,190 +1,206 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Bike Dashboard with Map + Export + Tabs</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bike Dashboard with Map</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Leaflet Map -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
-    nav { display: flex; background: #333; }
-    nav button {
-      flex: 1;
-      padding: 14px;
-      font-size: 16px;
-      color: white;
-      background: #333;
-      border: none;
-      cursor: pointer;
-    }
-    nav button.active { background: #555; }
-    .tab { display: none; padding: 20px; }
-    canvas { margin-bottom: 40px; max-width: 100%; }
-    #map { height: 400px; width: 100%; }
-    .controls { margin-bottom: 15px; }
-    .controls label { margin-right: 15px; }
-    button.export { margin-top: 10px; padding: 8px 16px; }
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    canvas { margin-bottom: 50px; }
+    h2 { margin-top: 60px; color: #333; }
+    #map { height: 400px; margin-top: 50px; border: 1px solid #ccc; }
   </style>
 </head>
 <body>
-  <nav>
-    <button onclick="showTab('charts')" class="active">📊 Charts</button>
-    <button onclick="showTab('map')">🗺️ Map</button>
-  </nav>
+  <h1>📊 Bike Telemetry Dashboard</h1>
 
-  <div id="charts" class="tab" style="display:block">
-    <div class="controls">
-      <label><input type="checkbox" checked onchange="toggleChart('batteryChart')"> Battery</label>
-      <label><input type="checkbox" checked onchange="toggleChart('speedChart')"> Speed</label>
-      <label><input type="checkbox" checked onchange="toggleChart('ridingChart')"> Riding</label>
-      <label><input type="checkbox" checked onchange="toggleChart('lockChart')"> Lock</label>
-    </div>
-    <canvas id="batteryChart"></canvas>
-    <canvas id="speedChart"></canvas>
-    <canvas id="ridingChart"></canvas>
-    <canvas id="lockChart"></canvas>
-    <button class="export" onclick="exportCSV()">📥 Export CSV</button>
-    <button class="export" onclick="loadDashboard()">🔄 Refresh Now</button>
-  </div>
+  <h2>Battery Level (%)</h2>
+  <canvas id="batteryChart" width="1000" height="300"></canvas>
 
-  <div id="mapTab" class="tab">
-    <div id="map"></div>
-  </div>
+  <h2>Speed (km/h)</h2>
+  <canvas id="speedChart" width="1000" height="300"></canvas>
+
+  <h2>Riding Mileage</h2>
+  <canvas id="ridingChart" width="1000" height="300"></canvas>
+
+  <h2>Lock Status</h2>
+  <canvas id="lockChart" width="1000" height="300"></canvas>
+
+  <h2>📍 Travel Path & Lock Events</h2>
+  <div id="map"></div>
 
   <script>
-    let map, dataCache = [];
+    fetch("/data")
+      .then(res => res.json())
+      .then(data => {
+        // === Filter bike/lock messages and enforce 10-minute interval ===
+        const lockData = data.filter(item =>
+          item.topic === "bike/lock" &&
+          item.payload.battery !== undefined &&
+          item.payload.timestamp
+        );
 
-    function showTab(id) {
-      document.querySelectorAll("nav button").forEach(btn => btn.classList.remove("active"));
-      document.querySelectorAll(".tab").forEach(t => t.style.display = 'none');
-      document.getElementById(id).style.display = 'block';
-      event.target.classList.add("active");
-    }
-
-    function toggleChart(id) {
-      const c = document.getElementById(id);
-      c.style.display = c.style.display === 'none' ? 'block' : 'none';
-    }
-
-    function exportCSV() {
-      if (!dataCache.length) return alert("No data to export");
-      const headers = ["timestamp","battery","speed","riding_mileage","lock_status"];
-      const rows = dataCache.map(d => headers.map(h => d[h]).join(","));
-      const csv = [headers.join(","), ...rows].join("\n");
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = "bike_data.csv";
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    function loadDashboard() {
-      fetch("/data").then(res => res.json()).then(data => {
         const filtered = [];
-        let lastTs = 0;
-        data.forEach(d => {
-          if (d.topic === "bike/lock" && d.payload.timestamp) {
-            const ts = new Date(d.payload.timestamp).getTime();
-            if (ts - lastTs >= 600000) { // 10 min
-              lastTs = ts;
-              filtered.push({
-                timestamp: d.payload.timestamp,
-                battery: d.payload.battery,
-                speed: d.payload.speed,
-                riding_mileage: d.payload.riding_mileage,
-                lock_status: d.payload.lock_status,
-                lat: d.payload.lat,
-                lon: d.payload.lon
-              });
-            }
+        let lastTimestamp = 0;
+
+        lockData.forEach(item => {
+          const ts = new Date(item.payload.timestamp).getTime();
+          if (ts - lastTimestamp >= 10 * 60 * 1000) { // 10 minutes
+            filtered.push(item);
+            lastTimestamp = ts;
           }
         });
 
-        dataCache = filtered; // save for export
-        const labels = filtered.map(d => new Date(d.timestamp).toLocaleTimeString());
+        const labels = filtered.map(item =>
+          new Date(item.payload.timestamp).toLocaleString()
+        );
+        const battery = filtered.map(item => item.payload.battery);
+        const speed = filtered.map(item => item.payload.speed);
+        const riding = filtered.map(item => item.payload.riding_mileage);
+        const lockStatus = filtered.map(item =>
+          item.payload.lock_status === "Unlocked" ? 1 : 0
+        );
 
-        const options = {
+        const baseOptions = {
           responsive: true,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { position: 'top' },
+            tooltip: {
+              callbacks: {
+                title: items => `Time: ${items[0].label}`
+              }
+            }
+          },
           scales: {
-            x: { ticks: { maxRotation: 45 } },
-            y: { beginAtZero: true }
+            x: {
+              title: { display: true, text: 'Timestamp' },
+              ticks: { maxRotation: 45, minRotation: 45 }
+            },
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: 'Value' }
+            }
           }
         };
 
-        new Chart(batteryChart, {
+        new Chart(document.getElementById('batteryChart'), {
           type: 'line',
-          data: { labels, datasets: [{ label: 'Battery', data: filtered.map(d => d.battery), borderColor: 'green', tension: 0.4 }] },
-          options
+          data: { labels, datasets: [{ label: 'Battery (%)', data: battery, borderColor: '#2ecc71', fill: false, tension: 0.4 }] },
+          options: baseOptions
         });
-        new Chart(speedChart, {
+
+        new Chart(document.getElementById('speedChart'), {
           type: 'line',
-          data: { labels, datasets: [{ label: 'Speed', data: filtered.map(d => d.speed), borderColor: 'blue', tension: 0.4 }] },
-          options
+          data: { labels, datasets: [{ label: 'Speed (km/h)', data: speed, borderColor: '#3498db', fill: false, tension: 0.4 }] },
+          options: baseOptions
         });
-        new Chart(ridingChart, {
+
+        new Chart(document.getElementById('ridingChart'), {
           type: 'line',
-          data: { labels, datasets: [{ label: 'Riding', data: filtered.map(d => d.riding_mileage), borderColor: 'orange', tension: 0.4 }] },
-          options
+          data: { labels, datasets: [{ label: 'Riding Mileage', data: riding, borderColor: '#f39c12', fill: false, tension: 0.4 }] },
+          options: baseOptions
         });
-        new Chart(lockChart, {
+
+        new Chart(document.getElementById('lockChart'), {
           type: 'bar',
           data: {
             labels,
             datasets: [{
-              label: 'Lock Status',
-              data: filtered.map(d => d.lock_status === 'Unlocked' ? 1 : 0),
-              backgroundColor: filtered.map(d => d.lock_status === 'Unlocked' ? '#2ecc71' : '#e74c3c')
+              label: 'Lock Status (1=Unlocked, 0=Locked)',
+              data: lockStatus,
+              backgroundColor: lockStatus.map(v => v === 1 ? '#2ecc71' : '#e74c3c')
             }]
           },
           options: {
-            ...options,
-            scales: { y: { beginAtZero: true, max: 1, ticks: { callback: v => v === 1 ? 'Unlocked' : 'Locked' } } }
+            ...baseOptions,
+            scales: {
+              x: baseOptions.scales.x,
+              y: {
+                beginAtZero: true,
+                max: 1,
+                ticks: {
+                  callback: v => v === 1 ? 'Unlocked' : 'Locked'
+                },
+                title: { display: true, text: 'Lock Status' }
+              }
+            }
           }
         });
 
-        // === MAP ===
-        const locs = data.filter(d => d.topic === "bike/location").map(d => {
-          const p = d.payload;
+        // === MAP: Show bike path and lock/unlock markers ===
+        const locations = data
+          .filter(d => d.topic === "bike/location")
+          .map(d => {
+            const p = d.payload;
+            return {
+              lat: p.lat || (p.coordinates ? p.coordinates[1] : null),
+              lon: p.lon || (p.coordinates ? p.coordinates[0] : null),
+              time: p.timestamp
+            };
+          }).filter(p => p.lat && p.lon);
+
+        if (locations.length > 0) {
+          const latest = locations[locations.length - 1];
+          const map = L.map('map').setView([latest.lat, latest.lon], 16);
+
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+          }).addTo(map);
+
+          // 🚲 bike icon
+          const bikeIcon = L.icon({
+            iconUrl: "https://cdn-icons-png.flaticon.com/512/747/747376.png",
+            iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -10]
+          });
+
+          L.marker([latest.lat, latest.lon], { icon: bikeIcon })
+            .addTo(map)
+            .bindPopup(`🚲 Latest Location<br>🕓 ${new Date(latest.time).toLocaleString()}`)
+            .openPopup();
+
+          // Trail
+          const path = locations.map(p => [p.lat, p.lon]);
+          L.polyline(path, { color: 'blue', weight: 4, opacity: 0.7 }).addTo(map);
+        }
+
+        // === Lock/Unlock markers (if they have lat/lon) ===
+        const lockEvents = data.filter(item =>
+          item.topic === "bike/lock" &&
+          item.payload.lock_status &&
+          (item.payload.lat || (item.payload.coordinates && item.payload.coordinates.length === 2))
+        ).map(item => {
+          const p = item.payload;
           return {
             lat: p.lat || (p.coordinates ? p.coordinates[1] : null),
             lon: p.lon || (p.coordinates ? p.coordinates[0] : null),
+            status: p.lock_status,
             time: p.timestamp
           };
-        }).filter(p => p.lat && p.lon);
+        });
 
-        if (!map && locs.length) {
-          const last = locs[locs.length - 1];
-          map = L.map('map').setView([last.lat, last.lon], 16);
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-          const bikeIcon = L.icon({
-            iconUrl: "https://cdn-icons-png.flaticon.com/512/747/747376.png",
-            iconSize: [32, 32], iconAnchor: [16, 16]
-          });
-          L.marker([last.lat, last.lon], { icon: bikeIcon }).addTo(map).bindPopup("Latest Position").openPopup();
-          const path = locs.map(p => [p.lat, p.lon]);
-          L.polyline(path, { color: 'blue' }).addTo(map);
-        }
-
-        // === LOCK ICONS ===
-        const lockEvents = filtered.filter(d => d.lat && d.lon);
-        lockEvents.forEach(e => {
+        lockEvents.forEach(event => {
           const icon = L.icon({
-            iconUrl: e.lock_status === "Unlocked"
+            iconUrl: event.status === "Unlocked"
               ? "https://cdn-icons-png.flaticon.com/512/61/61457.png"
               : "https://cdn-icons-png.flaticon.com/512/565/565547.png",
             iconSize: [24, 24], iconAnchor: [12, 12]
           });
-          L.marker([e.lat, e.lon], { icon }).addTo(map).bindPopup(`${e.lock_status} @ ${new Date(e.timestamp).toLocaleString()}`);
-        });
-      });
-    }
 
-    loadDashboard();
-    setInterval(loadDashboard, 60000);
+          L.marker([event.lat, event.lon], { icon })
+            .addTo(map)
+            .bindPopup(`${event.status} @ ${new Date(event.time).toLocaleString()}`);
+        });
+
+      })
+      .catch(err => {
+        console.error("Dashboard error:", err);
+        document.body.innerHTML += "<p style='color:red;'>Failed to load data.</p>";
+      });
   </script>
 </body>
 </html>
