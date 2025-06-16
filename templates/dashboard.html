@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Bike Battery Chart</title>
+  <title>Battery Level Chart</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <h2>Battery Level Chart</h2>
+  <h2>Battery Level (%)</h2>
   <canvas id="batteryChart" width="800" height="400"></canvas>
 
   <script>
@@ -14,36 +14,25 @@
       .then(data => {
         const batteryData = data
           .filter(item => item.topic === "bike/lock" && item.payload.battery !== undefined)
-          .map((item, index) => ({
-            label: `T${index}`,
+          .map((item, i) => ({
+            label: `T${i}`,
             battery: item.payload.battery
           }));
 
         const labels = batteryData.map(d => d.label);
         const values = batteryData.map(d => d.battery);
 
-        const ctx = document.getElementById('batteryChart').getContext('2d');
-        new Chart(ctx, {
+        new Chart(document.getElementById('batteryChart'), {
           type: 'line',
           data: {
             labels: labels,
             datasets: [{
-              label: 'Battery Level (%)',
+              label: 'Battery (%)',
               data: values,
-              borderColor: 'blue',
-              backgroundColor: 'lightblue',
-              tension: 0.3,
-              fill: true
+              borderColor: 'green',
+              borderWidth: 2,
+              fill: false
             }]
-          },
-          options: {
-            responsive: true,
-            scales: {
-              y: {
-                beginAtZero: true,
-                max: 100
-              }
-            }
           }
         });
       });
