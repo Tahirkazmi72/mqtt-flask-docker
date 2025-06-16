@@ -1,41 +1,58 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Battery Chart</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body>
-  <h2>Battery Level Chart</h2>
-  <canvas id="batteryChart" width="800" height="400"></canvas>
+<script>
+fetch("/data")
+  .then(res => res.json())
+  .then(data => {
+    const filtered = data.filter(item => item.topic === "bike/lock" && item.payload.battery !== undefined);
 
-  <script>
-    fetch("/data")
-      .then(res => res.json())
-      .then(data => {
-        const batteryData = data
-          .filter(item => item.topic === "bike/lock" && item.payload.battery !== undefined)
-          .map((item, i) => ({
-            label: `T${i}`,
-            battery: item.payload.battery
-          }));
+    const labels = filtered.map((_, i) => `T${i}`);
+    const battery = filtered.map(item => item.payload.battery);
+    const speed = filtered.map(item => item.payload.speed);
+    const riding = filtered.map(item => item.payload.riding_mileage);
+    const remaining = filtered.map(item => item.payload.remaining_mileage);
 
-        const labels = batteryData.map(d => d.label);
-        const values = batteryData.map(d => d.battery);
-
-        new Chart(document.getElementById('batteryChart'), {
-          type: 'line',
-          data: {
-            labels: labels,
-            datasets: [{
-              label: 'Battery (%)',
-              data: values,
-              borderColor: 'green',
-              borderWidth: 2,
-              fill: false
-            }]
+    new Chart(document.getElementById('batteryChart'), {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Battery (%)',
+            data: battery,
+            borderColor: 'green',
+            fill: false,
+            tension: 0.3
+          },
+          {
+            label: 'Speed (km/h)',
+            data: speed,
+            borderColor: 'blue',
+            fill: false,
+            tension: 0.3
+          },
+          {
+            label: 'Riding Mileage',
+            data: riding,
+            borderColor: 'orange',
+            fill: false,
+            tension: 0.3
+          },
+          {
+            label: 'Remaining Mileage',
+            data: remaining,
+            borderColor: 'red',
+            fill: false,
+            tension: 0.3
           }
-        });
-      });
-  </script>
-</body>
-</html>
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: {
+            beginAtZero: true
+          }
+        }
+      }
+    });
+  });
+</script>
