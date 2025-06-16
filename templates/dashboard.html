@@ -1,87 +1,156 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Grafana-Style Chart</title>
+  <title>Bike Telemetry Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body>
-  <h2>Battery Level Chart</h2>
-  <canvas id="batteryChart" width="800" height="400"></canvas>
+<body style="font-family: Arial, sans-serif; padding: 20px;">
+  <h2>Battery Level</h2>
+  <canvas id="batteryChart" width="800" height="200"></canvas>
 
-  <!-- Your updated script goes here -->
+  <h2>Speed</h2>
+  <canvas id="speedChart" width="800" height="200"></canvas>
+
+  <h2>Riding Mileage</h2>
+  <canvas id="ridingChart" width="800" height="200"></canvas>
+
+  <h2>Lock Status</h2>
+  <canvas id="lockChart" width="800" height="200"></canvas>
+
   <script>
     fetch("/data")
       .then(res => res.json())
       .then(data => {
-        const filtered = data.filter(item => item.topic === "bike/lock" && item.payload.battery !== undefined);
+        const filtered = data.filter(item =>
+          item.topic === "bike/lock" &&
+          item.payload.battery !== undefined &&
+          item.payload.timestamp !== undefined
+        );
 
-        const labels = filtered.map((item, i) => `T${i}`);
+        const labels = filtered.map(item => {
+          const ts = item.payload.timestamp || new Date().toISOString();
+          return new Date(ts).toLocaleString(); // format timestamp
+        });
+
         const battery = filtered.map(item => item.payload.battery);
         const speed = filtered.map(item => item.payload.speed);
         const riding = filtered.map(item => item.payload.riding_mileage);
-        const remaining = filtered.map(item => item.payload.remaining_mileage);
+        const lockStatus = filtered.map(item =>
+          item.payload.lock_status === "Unlocked" ? 1 : 0
+        );
 
-        const ctx = document.getElementById('batteryChart').getContext('2d');
-
-        new Chart(ctx, {
+        const chartOptions = {
           type: 'line',
-          data: {
-            labels: labels,
-            datasets: [
-              {
-                label: 'Battery (%)',
-                data: battery,
-                borderColor: '#2ecc71',
-                backgroundColor: '#2ecc71',
-                borderWidth: 2,
-                fill: false,
-                tension: 0.4
-              },
-              {
-                label: 'Speed (km/h)',
-                data: speed,
-                borderColor: '#3498db',
-                backgroundColor: '#3498db',
-                borderWidth: 2,
-                fill: false,
-                tension: 0.4
-              },
-              {
-                label: 'Riding Mileage',
-                data: riding,
-                borderColor: '#f39c12',
-                backgroundColor: '#f39c12',
-                borderWidth: 2,
-                fill: false,
-                tension: 0.4
-              },
-              {
-                label: 'Remaining Mileage',
-                data: remaining,
-                borderColor: '#e74c3c',
-                backgroundColor: '#e74c3c',
-                borderWidth: 2,
-                fill: false,
-                tension: 0.4
-              }
-            ]
-          },
           options: {
             responsive: true,
+            interaction: { mode: 'index', intersect: false },
             plugins: {
               legend: { position: 'top' },
-              tooltip: { mode: 'index', intersect: false }
+              tooltip: {
+                callbacks: {
+                  title: (tooltipItems) => `Time: ${tooltipItems[0].label}`
+                }
+              }
             },
-            interaction: { mode: 'index', intersect: false },
             scales: {
+              x: {
+                title: { display: true, text: 'Timestamp' },
+                ticks: { maxRotation: 45, minRotation: 45 }
+              },
               y: {
                 beginAtZero: true
               }
             }
           }
+        };
+
+        // Battery Chart
+        new Chart(document.getElementById('batteryChart'), {
+          ...chartOptions,
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Battery (%)',
+              data: battery,
+              borderColor: '#2ecc71',
+              fill: false,
+              tension: 0.4
+            }]
+          }
+        });
+
+        // Speed Chart
+        new Chart(document.getElementById('speedChart'), {
+          ...chartOptions,
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Speed (km/h)',
+              data: speed,
+              borderColor: '#3498db',
+              fill: false,
+              tension: 0.4
+            }]
+          }
+        });
+
+        // Riding Mileage
+        new Chart(document.getElementById('ridingChart'), {
+          ...chartOptions,
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Riding Mileage',
+              data: riding,
+              borderColor: '#f39c12',
+              fill: false,
+              tension: 0.4
+            }]
+          }
+        });
+
+        // Lock Status
+        new Chart(document.getElementById('lockChart'), {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Lock Status (1 = Unlocked, 0 = Locked)',
+              data: lockStatus,
+              backgroundColor: lockStatus.map(v => v === 1 ? '#2ecc71' : '#e74c3c')
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'top' },
+              tooltip: {
+                callbacks: {
+                  label: ctx =>
+                    ctx.raw === 1 ? 'Unlocked' : 'Locked',
+                  title: (tooltipItems) => `Time: ${tooltipItems[0].label}`
+                }
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                max: 1,
+                ticks: {
+                  callback: value => value === 1 ? 'Unlocked' : 'Locked'
+                }
+              },
+              x: {
+                ticks: {
+                  maxRotation: 45,
+                  minRotation: 45
+                }
+              }
+            }
+          }
         });
       })
-      .catch(err => console.error("Chart load error:", err));
+      .catch(err => console.error("Chart error:", err));
   </script>
 </body>
 </html>
