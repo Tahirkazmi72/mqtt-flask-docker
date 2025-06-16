@@ -4,7 +4,7 @@
   <title>Bike Dashboard with Map</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <!-- Leaflet for map -->
+  <!-- Leaflet Map CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -42,13 +42,14 @@
   <h2>Lock Status (🔒 = Locked, 🔓 = Unlocked)</h2>
   <canvas id="lockChart" width="1000" height="300"></canvas>
 
-  <h2>📍 Latest Location</h2>
+  <h2>📍 Live Location Map</h2>
   <div id="map"></div>
 
   <script>
     fetch("/data")
       .then(res => res.json())
       .then(data => {
+        // ======== CHARTS =========
         const filtered = data.filter(item =>
           item.topic === "bike/lock" && item.payload.battery !== undefined
         );
@@ -159,7 +160,7 @@
           }
         });
 
-        // ====== MAP SECTION ======
+        // ======== MAP ==========
         const locations = data
           .filter(item => item.topic === "bike/location")
           .map(item => {
@@ -169,23 +170,35 @@
               lon: p.lon || (p.coordinates ? p.coordinates[0] : null),
               time: p.timestamp
             };
-          }).filter(loc => loc.lat && loc.lon);
+          })
+          .filter(loc => loc.lat && loc.lon);
 
         if (locations.length > 0) {
           const latest = locations[locations.length - 1];
+
           const map = L.map('map').setView([latest.lat, latest.lon], 16);
 
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap contributors'
           }).addTo(map);
 
-          L.marker([latest.lat, latest.lon])
+          // 🚲 Custom bike icon
+          const bikeIcon = L.icon({
+            iconUrl: "https://cdn-icons-png.flaticon.com/512/747/747376.png",
+            iconSize: [32, 32],
+            iconAnchor: [16, 16],
+            popupAnchor: [0, -10]
+          });
+
+          // Marker with icon
+          L.marker([latest.lat, latest.lon], { icon: bikeIcon })
             .addTo(map)
-            .bindPopup(`🕓 ${new Date(latest.time).toLocaleString()}`)
+            .bindPopup(`🚲 Latest Location<br>🕓 ${new Date(latest.time).toLocaleString()}`)
             .openPopup();
 
+          // Polyline trail
           const path = locations.map(loc => [loc.lat, loc.lon]);
-          L.polyline(path, { color: 'blue' }).addTo(map);
+          L.polyline(path, { color: 'blue', weight: 4, opacity: 0.7 }).addTo(map);
         }
       })
       .catch(err => {
