@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <title>Bike Telemetry Dashboard</title>
@@ -8,157 +8,170 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     * { box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    h1 { margin-bottom: 1rem; }
-    .chart-wrapper { display: flex; align-items: center; margin-bottom: 2rem; }
-    .chart-wrapper canvas { width: 75%; max-width: 100%; }
-    .chart-info { width: 25%; padding-left: 1rem; font-size: 1.1rem; }
-    #map { height: 400px; margin-top: 2rem; border: 1px solid #ccc; }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+    h1 { margin-bottom: 10px; }
+
+    /* --- CHART LAYOUT --- */
+    .chart-row { display: flex; align-items: center; gap: 12px; margin: 40px 0; }
+    .chart-row canvas { flex: 0 0 75%; max-width: 75%; }
+    .value-panel { flex: 0 0 25%; max-width: 25%; background: #f9f9f9; border: 1px solid #ddd; border-radius: 6px; padding: 12px; text-align: center; }
+    .value-panel h3 { margin: 4px 0 6px; font-size: 1rem; color: #333; }
+    .value-panel p { margin: 0; font-size: 1.25rem; font-weight: bold; }
+
+    /* --- MAP --- */
+    #map { height: 350px; border: 1px solid #ccc; margin-top: 40px; }
+
+    /* --- RESPONSIVE --- */
+    @media (max-width: 800px) {
+      .chart-row { flex-direction: column; }
+      .chart-row canvas, .value-panel { max-width: 100%; flex: 0 0 100%; }
+    }
   </style>
 </head>
 <body>
-  <h1 id="lockerIdLabel">Locker ID: Unknown</h1>
+  <h1>📊 Bike Telemetry Dashboard</h1>
+  <h2 id="lockerId">Locker ID: Unknown</h2>
 
-  <!-- Battery Chart -->
-  <div class="chart-wrapper">
+  <!-- Battery -->
+  <div class="chart-row">
     <canvas id="batteryChart"></canvas>
-    <div class="chart-info" id="batteryInfo"></div>
+    <div class="value-panel"><h3>Battery</h3><p id="batteryValue">-- %</p></div>
   </div>
 
-  <!-- Speed Chart -->
-  <div class="chart-wrapper">
+  <!-- Speed -->
+  <div class="chart-row">
     <canvas id="speedChart"></canvas>
-    <div class="chart-info" id="speedInfo"></div>
+    <div class="value-panel"><h3>Speed</h3><p id="speedValue">-- km/h</p></div>
   </div>
 
-  <!-- Riding Mileage Chart -->
-  <div class="chart-wrapper">
-    <canvas id="ridingChart"></canvas>
-    <div class="chart-info" id="ridingInfo"></div>
+  <!-- Riding Mileage -->
+  <div class="chart-row">
+    <canvas id="mileageChart"></canvas>
+    <div class="value-panel"><h3>Mileage</h3><p id="mileageValue">-- km</p></div>
   </div>
 
-  <!-- Lock Status Chart -->
-  <div class="chart-wrapper">
+  <!-- Lock Status -->
+  <div class="chart-row">
     <canvas id="lockChart"></canvas>
-    <div class="chart-info" id="lockInfo"></div>
+    <div class="value-panel"><h3>Lock</h3><p id="lockValue">--</p></div>
   </div>
 
   <h2>📍 Live Location Map</h2>
   <div id="map"></div>
 
-  <button onclick="exportCSV()">📥 Export CSV with Location</button>
+  <button onclick="exportCSV()" style="margin-top:30px; padding:10px 20px;font-size:1rem;cursor:pointer;">📥 Export CSV</button>
 
   <script>
-    let filteredData = [];
     let allData = [];
+
+    function setLabel(id, value, unit = "") {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value !== undefined && value !== null ? `${value} ${unit}`.trim() : "--";
+    }
 
     async function loadDashboard() {
       try {
-        const response = await fetch("/data");
-        if (!response.ok) throw new Error(`Server returned ${response.status}`);
-        const data = await response.json();
-        allData = Array.isArray(data) ? data : [];
+        const res = await fetch("/data");
+        if (!res.ok) throw new Error(`Server returned ${res.status}`);
+        allData = await res.json();
+        if (!Array.isArray(allData) || !allData.length) throw new Error("No data");
 
-        // bike/lock messages for charts
-        filteredData = allData.filter(item => item.topic === "bike/lock" && item.payload && typeof item.payload.battery === "number");
-        if (!filteredData.length) throw new Error("No 'bike/lock' data found.");
+        // Locker ID (first message with id wins)
+        const idMsg = allData.find(d => d.payload && d.payload.id);
+        if (idMsg) document.getElementById("lockerId").textContent = `Locker ID: ${idMsg.payload.id}`;
 
-        // Show locker ID if available
-        const firstPayload = filteredData[0].payload || {};
-        if (firstPayload.id) {
-          document.getElementById("lockerIdLabel").textContent = `Locker ID: ${firstPayload.id}`;
+        /* --------- FILTERS --------- */
+        const lockMsgs = allData.filter(i => i.topic === "bike/lock" && i.payload);
+        const locMsgs  = allData.filter(i => i.topic === "bike/location" && i.payload);
+
+        const labels   = lockMsgs.map(i => new Date(i.payload.timestamp || Date.now()).toLocaleString());
+        const battery  = lockMsgs.map(i => i.payload.battery);
+        const speed    = lockMsgs.map(i => i.payload.speed);
+        const mileage  = lockMsgs.map(i => i.payload.riding_mileage);
+        const lockStat = lockMsgs.map(i => i.payload.lock_status === "Unlocked" ? 1 : 0);
+
+        /* ---------- CHART OPTIONS ---------- */
+        const baseOpt = {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { title: {display:true,text:"Time"}, ticks:{maxRotation:45,minRotation:45} },
+            y: { beginAtZero: true }
+          }
+        };
+
+        // Battery Chart
+        new Chart(document.getElementById("batteryChart"), {
+          type: "line",
+          data: { labels, datasets:[{data:battery,label:"Battery",borderColor:"#27ae60",fill:false,tension:0.4}] },
+          options: baseOpt
+        });
+        setLabel("batteryValue", battery.at(-1), "%");
+
+        // Speed Chart
+        new Chart(document.getElementById("speedChart"), {
+          type: "line",
+          data: { labels, datasets:[{data:speed,label:"Speed",borderColor:"#2980b9",fill:false,tension:0.4}] },
+          options: baseOpt
+        });
+        setLabel("speedValue", speed.at(-1), "km/h");
+
+        // Mileage Chart
+        new Chart(document.getElementById("mileageChart"), {
+          type: "line",
+          data: { labels, datasets:[{data:mileage,label:"Mileage",borderColor:"#e67e22",fill:false,tension:0.4}] },
+          options: baseOpt
+        });
+        setLabel("mileageValue", mileage.at(-1), "km");
+
+        // Lock Chart
+        new Chart(document.getElementById("lockChart"), {
+          type: "bar",
+          data: { labels, datasets:[{data:lockStat,label:"Lock",backgroundColor:lockStat.map(v=>v?"#2ecc71":"#e74c3c")} ] },
+          options: { ...baseOpt, scales:{...baseOpt.scales, y:{beginAtZero:true,max:1,ticks:{callback:v=>v?"Unlocked":"Locked"}}} }
+        });
+        setLabel("lockValue", lockStat.at(-1) ? "Unlocked" : "Locked");
+
+        /* ---------- MAP ---------- */
+        const locs = locMsgs.map(m => {
+          const p = m.payload;
+          return {
+            lat: p.lat ?? (Array.isArray(p.coordinates)?p.coordinates[1]:null),
+            lon: p.lon ?? (Array.isArray(p.coordinates)?p.coordinates[0]:null),
+            time: p.timestamp || Date.now()
+          };
+        }).filter(l => typeof l.lat === "number" && typeof l.lon === "number");
+
+        if (locs.length) {
+          const last = locs.at(-1);
+          const map = L.map("map").setView([last.lat, last.lon], 15);
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap"}).addTo(map);
+          const marker = L.marker([last.lat,last.lon]).addTo(map);
+          marker.bindPopup(`🚲 ${new Date(last.time).toLocaleString()}`).openPopup();
+          const path = locs.map(l=>[l.lat,l.lon]);
+          L.polyline(path,{color:"blue",weight:3,opacity:0.7}).addTo(map);
         }
 
-        const labels = filteredData.map(item => {
-          const ts = item.payload.timestamp;
-          return ts ? new Date(ts).toLocaleString() : "";
-        });
-
-        const battery = filteredData.map(i => i.payload.battery);
-        const speed = filteredData.map(i => i.payload.speed);
-        const riding = filteredData.map(i => i.payload.riding_mileage);
-        const lockStatus = filteredData.map(i => i.payload.lock_status === "Unlocked" ? 1 : 0);
-
-        createLineChart('batteryChart', labels, battery, 'Battery (%)');
-        createLineChart('speedChart', labels, speed, 'Speed (km/h)');
-        createLineChart('ridingChart', labels, riding, 'Riding Mileage');
-        createBarChart('lockChart', labels, lockStatus, 'Lock Status');
-
-        // Side labels
-        updateInfo('batteryInfo', battery.at(-1), '%', 'بیٹری');
-        updateInfo('speedInfo', speed.at(-1), 'km/h', 'رفتار');
-        updateInfo('ridingInfo', riding.at(-1), 'km', 'فاصلہ');
-        updateInfo('lockInfo', lockStatus.at(-1) ? 'Unlocked' : 'Locked', '', 'لاک');
-
-        loadMap();
-      } catch (err) {
-        document.body.insertAdjacentHTML('beforeend', `<p style='color:red;'>${err.message}</p>`);
+      } catch(e) {
+        console.error(e);
+        document.body.insertAdjacentHTML("beforeend",`<p style='color:red;'>${e.message}</p>`);
       }
     }
 
-    function createLineChart(canvasId, labels, data, label) {
-      new Chart(document.getElementById(canvasId), {
-        type: 'line',
-        data: { labels, datasets: [{ label, data, borderWidth: 2, fill: false, tension: 0.4 }] },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
-      });
-    }
-
-    function createBarChart(canvasId, labels, data, label) {
-      new Chart(document.getElementById(canvasId), {
-        type: 'bar',
-        data: { labels, datasets: [{ label, data }] },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 1 } } }
-      });
-    }
-
-    function updateInfo(elId, value, unit, label) {
-      const el = document.getElementById(elId);
-      el.textContent = `${label}: ${value ?? 'N/A'} ${unit}`.trim();
-    }
-
-    function loadMap() {
-      const locs = allData
-        .filter(i => i.topic === 'bike/location' && i.payload)
-        .map(i => ({
-          lat: i.payload.lat ?? (Array.isArray(i.payload.coordinates) ? i.payload.coordinates[1] : null),
-          lon: i.payload.lon ?? (Array.isArray(i.payload.coordinates) ? i.payload.coordinates[0] : null),
-          time: i.payload.timestamp ?? ''
-        }))
-        .filter(l => typeof l.lat === 'number' && typeof l.lon === 'number');
-
-      if (!locs.length) return;
-      const latest = locs.at(-1);
-      const map = L.map('map').setView([latest.lat, latest.lon], 16);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
-      const marker = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/747/747376.png', iconSize: [32, 32] });
-      L.marker([latest.lat, latest.lon], { icon: marker }).addTo(map).bindPopup(`🕓 ${new Date(latest.time).toLocaleString()}`);
-      L.polyline(locs.map(l => [l.lat, l.lon]), { color: 'blue', weight: 4 }).addTo(map);
-    }
-
     function exportCSV() {
-      if (!allData.length) { alert('No data to export.'); return; }
-      const headers = ['Timestamp', 'Battery', 'Speed', 'Riding Mileage', 'Lock Status', 'Latitude', 'Longitude'];
-      const rows = allData.map(item => {
-        const p = item.payload || {};
-        const ts = p.timestamp ? new Date(p.timestamp).toISOString() : '';
-        const battery = p.battery ?? '';
-        const speed = p.speed ?? '';
-        const riding = p.riding_mileage ?? '';
-        const status = p.lock_status ?? '';
-        const lat = p.lat ?? (Array.isArray(p.coordinates) ? p.coordinates[1] : '');
-        const lon = p.lon ?? (Array.isArray(p.coordinates) ? p.coordinates[0] : '');
-        return [ts, battery, speed, riding, status, lat, lon].join(',');
+      if (!allData.length) return alert("No data");
+      const header = ["topic","timestamp","battery","speed","mileage","lock_status","lat","lon"];
+      const rows = allData.map(m => {
+        const p = m.payload || {};
+        const ts = p.timestamp ? new Date(p.timestamp).toISOString() : "";
+        const lat = p.lat ?? (Array.isArray(p.coordinates)?p.coordinates[1]:"");
+        const lon = p.lon ?? (Array.isArray(p.coordinates)?p.coordinates[0]:"");
+        return [m.topic, ts, p.battery??"", p.speed??"", p.riding_mileage??"", p.lock_status??"", lat, lon].join(",");
       });
-      const blob = new Blob([headers.join(',') + '\n' + rows.join('\n')], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'bike_data.csv';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      const csv = [header.join(","), ...rows].join("\n");
+      const url = URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+      const a = document.createElement("a");
+      a.href = url; a.download = "bike_telemetry.csv"; a.click(); URL.revokeObjectURL(url);
     }
 
     loadDashboard();
