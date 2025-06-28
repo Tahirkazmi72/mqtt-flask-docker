@@ -9,86 +9,40 @@
   <style>
     * { box-sizing: border-box; }
     body { font-family: Arial, sans-serif; padding: 20px; }
-    h1 { margin-bottom: 10px; }
-    h2 { margin: 40px 0 10px; color: #333; }
-
-    /* Locker ID banner */
-    #lockerId {
-      font-size: 18px;
-      font-weight: bold;
-      margin-bottom: 15px;
-      padding: 8px 12px;
-      background: #f3f4f6;
-      border-left: 4px solid #2563eb;
-    }
-
-    /* Chart + label layout */
-    .chart-container {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      width: 100%;
-    }
-    canvas {
-      flex: 0 0 75%;   /* 75% width */
-      height: 280px;   /* fixed height for consistency */
-    }
-    .chart-label {
-      flex: 0 0 25%;   /* 25% width */
-      font-size: 14px;
-      line-height: 1.4;
-      background: #fafafa;
-      border: 1px solid #e5e7eb;
-      padding: 8px;
-      border-radius: 4px;
-    }
-
-    /* Map */
-    #map { height: 400px; border: 1px solid #ccc; margin-top: 20px; }
-
-    button {
-      padding: 10px 20px;
-      font-size: 16px;
-      margin-top: 30px;
-      cursor: pointer;
-    }
+    h1 { margin-bottom: 1rem; }
+    .chart-wrapper { display: flex; align-items: center; margin-bottom: 2rem; }
+    .chart-wrapper canvas { width: 75%; max-width: 100%; }
+    .chart-info { width: 25%; padding-left: 1rem; font-size: 1.1rem; }
+    #map { height: 400px; margin-top: 2rem; border: 1px solid #ccc; }
   </style>
 </head>
 <body>
-  <!-- Locker ID will be filled by JS -->
-  <div id="lockerId">Locker ID: ...</div>
+  <h1 id="lockerIdLabel">Locker ID: Unknown</h1>
 
-  <h1>📊 Bike Telemetry Dashboard</h1>
-
-  <!-- BATTERY -->
-  <h2>Battery Level (%)</h2>
-  <div class="chart-container">
+  <!-- Battery Chart -->
+  <div class="chart-wrapper">
     <canvas id="batteryChart"></canvas>
-    <div id="batteryLabel" class="chart-label">Loading…</div>
+    <div class="chart-info" id="batteryInfo"></div>
   </div>
 
-  <!-- SPEED -->
-  <h2>Speed (km/h)</h2>
-  <div class="chart-container">
+  <!-- Speed Chart -->
+  <div class="chart-wrapper">
     <canvas id="speedChart"></canvas>
-    <div id="speedLabel" class="chart-label">Loading…</div>
+    <div class="chart-info" id="speedInfo"></div>
   </div>
 
-  <!-- RIDING MILEAGE -->
-  <h2>Riding Mileage (km)</h2>
-  <div class="chart-container">
+  <!-- Riding Mileage Chart -->
+  <div class="chart-wrapper">
     <canvas id="ridingChart"></canvas>
-    <div id="ridingLabel" class="chart-label">Loading…</div>
+    <div class="chart-info" id="ridingInfo"></div>
   </div>
 
-  <!-- LOCK STATUS -->
-  <h2>Lock Status (🔒 / 🔓)</h2>
-  <div class="chart-container">
+  <!-- Lock Status Chart -->
+  <div class="chart-wrapper">
     <canvas id="lockChart"></canvas>
-    <div id="lockLabel" class="chart-label">Loading…</div>
+    <div class="chart-info" id="lockInfo"></div>
   </div>
 
-  <!-- MAP -->
   <h2>📍 Live Location Map</h2>
   <div id="map"></div>
 
@@ -96,165 +50,118 @@
 
   <script>
     let filteredData = [];
+    let allData = [];
 
     async function loadDashboard() {
       try {
         const response = await fetch("/data");
         if (!response.ok) throw new Error(`Server returned ${response.status}`);
         const data = await response.json();
+        allData = Array.isArray(data) ? data : [];
 
-        // ------------ FILTER TELEMETRY -------------
-        filteredData = data.filter(item => item.topic === "bike/lock" && item.payload);
-        if (filteredData.length === 0) throw new Error("No bike/lock data found.");
+        // bike/lock messages for charts
+        filteredData = allData.filter(item => item.topic === "bike/lock" && item.payload && typeof item.payload.battery === "number");
+        if (!filteredData.length) throw new Error("No 'bike/lock' data found.");
 
-        // Fill Locker ID banner
-        const lockerId = filteredData[0].payload.id || "Unknown";
-        document.getElementById("lockerId").textContent = `Locker ID: ${lockerId}`;
-
-        // Labels & series
-        const labels = filteredData.map(i => new Date(i.payload.timestamp).toLocaleString());
-        const battery = filteredData.map(i => i.payload.battery);
-        const speed   = filteredData.map(i => i.payload.speed);
-        const riding  = filteredData.map(i => i.payload.riding_mileage);
-        const lockStatus = filteredData.map(i => i.payload.lock_status === "Unlocked" ? 1 : 0);
-
-        // Base chart options
-        const baseOptions = {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            legend: { position: 'top' },
-            tooltip: {
-              callbacks: {
-                title: items => `Time: ${items[0].label}`
-              }
-            }
-          },
-          scales: {
-            x: {
-              title: { display: true, text: 'Timestamp' },
-              ticks: { maxRotation: 45, minRotation: 45 }
-            },
-            y: {
-              beginAtZero: true,
-              title: { display: true, text: 'Value' }
-            }
-          }
-        };
-
-        // Helper to update label
-        const setLabel = (id, text) => {
-          document.getElementById(id).textContent = text;
-        };
-
-        // BATTERY
-        const batteryChart = new Chart(document.getElementById('batteryChart').getContext('2d'), {
-          type: 'line',
-          data: { labels, datasets: [{ label: 'Battery (%)', data: battery, borderColor: '#10b981', fill: false, tension: 0.4 }] },
-          options: baseOptions
-        });
-        setLabel('batteryLabel', `🔋 Battery: ${battery.slice(-1)[0]} %`);
-
-        // SPEED
-        const speedChart = new Chart(document.getElementById('speedChart').getContext('2d'), {
-          type: 'line',
-          data: { labels, datasets: [{ label: 'Speed (km/h)', data: speed, borderColor: '#3b82f6', fill: false, tension: 0.4 }] },
-          options: baseOptions
-        });
-        setLabel('speedLabel', `🚴‍♂️ Speed: ${speed.slice(-1)[0]} km/h`);
-
-        // RIDING
-        const ridingChart = new Chart(document.getElementById('ridingChart').getContext('2d'), {
-          type: 'line',
-          data: { labels, datasets: [{ label: 'Riding Mileage (km)', data: riding, borderColor: '#f59e0b', fill: false, tension: 0.4 }] },
-          options: baseOptions
-        });
-        setLabel('ridingLabel', `📏 Mileage: ${riding.slice(-1)[0]} km`);
-
-        // LOCK STATUS
-        const lockChart = new Chart(document.getElementById('lockChart').getContext('2d'), {
-          type: 'bar',
-          data: {
-            labels,
-            datasets: [{
-              label: 'Lock Status',
-              data: lockStatus,
-              backgroundColor: lockStatus.map(v => v === 1 ? '#10b981' : '#ef4444')
-            }]
-          },
-          options: {
-            ...baseOptions,
-            scales: {
-              x: baseOptions.scales.x,
-              y: {
-                beginAtZero: true,
-                max: 1,
-                ticks: { callback: v => v === 1 ? 'Unlocked' : 'Locked' },
-                title: { display: true, text: 'Lock Status' }
-              }
-            }
-          }
-        });
-        setLabel('lockLabel', lockStatus.slice(-1)[0] === 1 ? '🔓 Unlocked' : '🔒 Locked');
-
-        // ------------- MAP -------------
-        const locations = data
-          .filter(i => i.topic === "bike/location" && i.payload)
-          .map(i => {
-            const p = i.payload;
-            const lat = p.lat ?? (Array.isArray(p.coordinates) ? p.coordinates[1] : null);
-            const lon = p.lon ?? (Array.isArray(p.coordinates) ? p.coordinates[0] : null);
-            const time = p.timestamp || new Date().toISOString();
-            return { lat, lon, time };
-          })
-          .filter(l => typeof l.lat === 'number' && typeof l.lon === 'number');
-
-        if (locations.length) {
-          const latest = locations.at(-1);
-          const map = L.map('map').setView([latest.lat, latest.lon], 16);
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap'
-          }).addTo(map);
-          const icon = L.icon({
-            iconUrl: 'https://cdn-icons-png.flaticon.com/512/747/747376.png',
-            iconSize: [24, 24],
-            iconAnchor: [12, 12],
-            popupAnchor: [0, -10]
-          });
-          L.marker([latest.lat, latest.lon], { icon })
-            .addTo(map)
-            .bindPopup(`🚲 Latest Location<br>${new Date(latest.time).toLocaleString()}`)
-            .openPopup();
-          const path = locations.map(l => [l.lat, l.lon]);
-          L.polyline(path, { color: '#3b82f6', weight: 4, opacity: 0.7 }).addTo(map);
+        // Show locker ID if available
+        const firstPayload = filteredData[0].payload || {};
+        if (firstPayload.id) {
+          document.getElementById("lockerIdLabel").textContent = `Locker ID: ${firstPayload.id}`;
         }
 
+        const labels = filteredData.map(item => {
+          const ts = item.payload.timestamp;
+          return ts ? new Date(ts).toLocaleString() : "";
+        });
+
+        const battery = filteredData.map(i => i.payload.battery);
+        const speed = filteredData.map(i => i.payload.speed);
+        const riding = filteredData.map(i => i.payload.riding_mileage);
+        const lockStatus = filteredData.map(i => i.payload.lock_status === "Unlocked" ? 1 : 0);
+
+        createLineChart('batteryChart', labels, battery, 'Battery (%)');
+        createLineChart('speedChart', labels, speed, 'Speed (km/h)');
+        createLineChart('ridingChart', labels, riding, 'Riding Mileage');
+        createBarChart('lockChart', labels, lockStatus, 'Lock Status');
+
+        // Side labels
+        updateInfo('batteryInfo', battery.at(-1), '%', 'بیٹری');
+        updateInfo('speedInfo', speed.at(-1), 'km/h', 'رفتار');
+        updateInfo('ridingInfo', riding.at(-1), 'km', 'فاصلہ');
+        updateInfo('lockInfo', lockStatus.at(-1) ? 'Unlocked' : 'Locked', '', 'لاک');
+
+        loadMap();
       } catch (err) {
-        console.error(err);
-        document.body.insertAdjacentHTML('beforeend', `<p style="color:red;">Failed: ${err.message}</p>`);
+        document.body.insertAdjacentHTML('beforeend', `<p style='color:red;'>${err.message}</p>`);
       }
     }
 
-    function exportCSV() {
-      if (!filteredData.length) return alert('No data to export');
-      const headers = ['Timestamp','Battery','Speed','Riding Mileage','Lock Status','Latitude','Longitude'];
-      const rows = filteredData.map(i => {
-        const p = i.payload;
-        const ts = p.timestamp ? new Date(p.timestamp).toISOString() : '';
-        const lat = p.lat ?? (Array.isArray(p.coordinates) ? p.coordinates[1] : '');
-        const lon = p.lon ?? (Array.isArray(p.coordinates) ? p.coordinates[0] : '');
-        return [ts, p.battery??'', p.speed??'', p.riding_mileage??'', p.lock_status??'', lat, lon].join(',');
+    function createLineChart(canvasId, labels, data, label) {
+      new Chart(document.getElementById(canvasId), {
+        type: 'line',
+        data: { labels, datasets: [{ label, data, borderWidth: 2, fill: false, tension: 0.4 }] },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
       });
-      const csv = [headers.join(','), ...rows].join('\n');
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = Object.assign(document.createElement('a'), { href: url, download: 'bike_data.csv' });
-      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     }
 
-    // Load charts on page ready
-    window.addEventListener('DOMContentLoaded', loadDashboard);
+    function createBarChart(canvasId, labels, data, label) {
+      new Chart(document.getElementById(canvasId), {
+        type: 'bar',
+        data: { labels, datasets: [{ label, data }] },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 1 } } }
+      });
+    }
+
+    function updateInfo(elId, value, unit, label) {
+      const el = document.getElementById(elId);
+      el.textContent = `${label}: ${value ?? 'N/A'} ${unit}`.trim();
+    }
+
+    function loadMap() {
+      const locs = allData
+        .filter(i => i.topic === 'bike/location' && i.payload)
+        .map(i => ({
+          lat: i.payload.lat ?? (Array.isArray(i.payload.coordinates) ? i.payload.coordinates[1] : null),
+          lon: i.payload.lon ?? (Array.isArray(i.payload.coordinates) ? i.payload.coordinates[0] : null),
+          time: i.payload.timestamp ?? ''
+        }))
+        .filter(l => typeof l.lat === 'number' && typeof l.lon === 'number');
+
+      if (!locs.length) return;
+      const latest = locs.at(-1);
+      const map = L.map('map').setView([latest.lat, latest.lon], 16);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+      const marker = L.icon({ iconUrl: 'https://cdn-icons-png.flaticon.com/512/747/747376.png', iconSize: [32, 32] });
+      L.marker([latest.lat, latest.lon], { icon: marker }).addTo(map).bindPopup(`🕓 ${new Date(latest.time).toLocaleString()}`);
+      L.polyline(locs.map(l => [l.lat, l.lon]), { color: 'blue', weight: 4 }).addTo(map);
+    }
+
+    function exportCSV() {
+      if (!allData.length) { alert('No data to export.'); return; }
+      const headers = ['Timestamp', 'Battery', 'Speed', 'Riding Mileage', 'Lock Status', 'Latitude', 'Longitude'];
+      const rows = allData.map(item => {
+        const p = item.payload || {};
+        const ts = p.timestamp ? new Date(p.timestamp).toISOString() : '';
+        const battery = p.battery ?? '';
+        const speed = p.speed ?? '';
+        const riding = p.riding_mileage ?? '';
+        const status = p.lock_status ?? '';
+        const lat = p.lat ?? (Array.isArray(p.coordinates) ? p.coordinates[1] : '');
+        const lon = p.lon ?? (Array.isArray(p.coordinates) ? p.coordinates[0] : '');
+        return [ts, battery, speed, riding, status, lat, lon].join(',');
+      });
+      const blob = new Blob([headers.join(',') + '\n' + rows.join('\n')], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'bike_data.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    loadDashboard();
   </script>
 </body>
 </html>
