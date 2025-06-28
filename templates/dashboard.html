@@ -131,8 +131,22 @@
       }
     }
 
+    function destroyExistingLeafletMap() {
+      // If mapInstance already tracked
+      if (mapInstance) {
+        mapInstance.off();
+        mapInstance.remove();
+        mapInstance = null;
+      }
+      // If any orphan Leaflet object still bound to container
+      const mapElem = document.getElementById("map");
+      if (mapElem && mapElem._leaflet_id) {
+        try { mapElem._leaflet_id = null; } catch(e) { /* ignore */ }
+      }
+      mapElem.innerHTML = ""; // clear children (tile layers, etc.)
+    }
+
     function renderMap() {
-      // Locate valid coordinate messages
       const locMsgs = allData.filter(i => i.payload && extractLatLon(i.payload).lat !== null);
       const locs = locMsgs.map(m => {
         const { lat, lon } = extractLatLon(m.payload);
@@ -140,50 +154,19 @@
       });
 
       const mapContainer = document.getElementById("map");
-      mapContainer.classList.remove("empty");
 
-      // Destroy old map if exists
-      if (mapInstance) {
-        mapInstance.remove();
-        mapInstance = null;
-        mapContainer.innerHTML = ""; // clear previous tiles divs
-      }
+      // Reset / destroy earlier map safely
+      destroyExistingLeafletMap();
 
       if (!locs.length) {
         mapContainer.textContent = "No location data yet…";
         mapContainer.classList.add("empty");
         return;
       }
+      mapContainer.classList.remove("empty");
 
       const last = locs.at(-1);
       mapInstance = L.map("map", { attributionControl: false }).setView([last.lat, last.lon], 15);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap" }).addTo(mapInstance);
 
-      L.marker([last.lat, last.lon]).addTo(mapInstance)
-        .bindPopup(`🚲 ${new Date(last.time).toLocaleString()}`).openPopup();
-
-      const pathCoords = locs.map(l => [l.lat, l.lon]);
-      L.polyline(pathCoords, { color: "blue", weight: 3, opacity: .7 }).addTo(mapInstance);
-    }
-
-    /* --------------- CSV EXPORT --------------- */
-    function exportCSV() {
-      if (!allData.length) return alert("No data");
-      const header = ["topic", "timestamp", "battery", "speed", "mileage", "lock_status", "lat", "lon"];
-      const rows = allData.map(m => {
-        const p = m.payload || {};
-        const ts = p.timestamp ? new Date(p.timestamp).toISOString() : "";
-        const { lat, lon } = extractLatLon(p);
-        return [m.topic, ts, p.battery ?? "", p.speed ?? "", p.riding_mileage ?? "", p.lock_status ?? "", lat ?? "", lon ?? ""].join(",");
-      });
-      const blob = new Blob([[header.join(","), ...rows].join("\n")], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = "bike_telemetry.csv"; a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    loadDashboard();
-  </script>
-</body>
-</html>
+      L.marker([last.lat, last.lon]).add
