@@ -24,13 +24,8 @@
     #map{height:350px;border:1px solid #ccc;margin-top:32px}
     #map.empty{display:flex;align-items:center;justify-content:center;color:#666;font-style:italic}
 
-    #controls{display:flex;align-items:center;gap:12px;margin:20px 0}
-    #exportBtn, #controls label{padding:10px 20px;font-size:1rem;cursor:pointer;border:none;border-radius:4px;background:#3498db;color:#fff}
-    #exportBtn:hover, #controls label:hover{background:#2980b9}
-    #autoRefresh{margin-right:6px;cursor:pointer}
-    #controls label{display:flex;align-items:center;background:#27ae60}
-    #controls label:hover{background:#1e874b}
-    #controls label span{user-select:none;color:#fff}
+    button{padding:10px 20px;font-size:1rem;cursor:pointer;margin-top:26px;border:none;border-radius:4px;background:#3498db;color:#fff}
+    button:hover{background:#2980b9}
 
     @media(max-width:800px){
       .chart-row{flex-direction:column}
@@ -41,11 +36,6 @@
 <body>
   <h1>📊 Bike Telemetry Dashboard</h1>
   <h2 id="lockerId">Locker ID: Unknown</h2>
-
-  <div id="controls">
-    <label><input type="checkbox" id="autoRefresh" checked><span>Auto‑Refresh (5 s)</span></label>
-    <button id="exportBtn">📥 Export CSV</button>
-  </div>
 
   <div class="chart-row">
     <canvas id="batteryChart"></canvas>
@@ -70,22 +60,22 @@
   <h2>📍 Live Location Map</h2>
   <div id="map" class="empty">Loading map…</div>
 
+  <button id="exportBtn">📥 Export CSV</button>
+
   <script>
     let allData=[];
     const CHARTS={}; // store chart instances for reuse
 
     function fmt(val,unit=""){return (val||val===0)?`${val} ${unit}`.trim():"--"}
-    const setLabel=(id,val,unit="")=>{const el=document.getElementById(id); if(el) el.textContent=fmt(val,unit)}
+    function setLabel(id,val,unit=""){const el=document.getElementById(id); if(el) el.textContent=fmt(val,unit)}
 
-    // Robust timestamp formatter (HH:mm:ss)
+    // Robust timestamp formatter
     function formatTimestamp(ts){
       if(!ts && ts!==0) return "";
-      let ms=ts;
-      if(typeof ts==="number"){if(ts<1e12) ms=ts*1000;} // seconds→ms
-      else ms=Date.parse(ts);
-      if(Number.isNaN(ms)) return "";
-      const d=new Date(ms);
-      return d.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+      // numeric? assume epoch (sec or ms)
+      if(typeof ts==="number"){ if(ts<1e12) ts*=1000; return new Date(ts).toLocaleString(); }
+      // ISO string or other – let Date parse
+      return new Date(ts).toLocaleString();
     }
 
     async function fetchData(){
@@ -133,16 +123,13 @@
           const p=m.payload||{};
           const lat=typeof p.lat==="number"?p.lat:(Array.isArray(p.coordinates)?p.coordinates[1]:null);
           const lon=typeof p.lon==="number"?p.lon:(Array.isArray(p.coordinates)?p.coordinates[0]:null);
-          const time=p.timestamp??Date.now();
-          return {lat,lon,time};
+          return {lat,lon,time:p.timestamp||Date.now()};
         }).filter(l=>typeof l.lat==="number"&&typeof l.lon==="number");
         setupMap(locs);
 
       }catch(err){
         console.error(err);
-        const map=document.getElementById("map");
-        map.textContent=`Error: ${err.message}`;
-        map.classList.add("empty");
+        document.getElementById("map").textContent=`Error: ${err.message}`;
       }
     }
 
@@ -151,7 +138,9 @@
       if(CHARTS[canvasId]){ // update existing chart
         CHARTS[canvasId].data.labels=labels;
         CHARTS[canvasId].data.datasets[0].data=data;
-        if(lockChart){ CHARTS[canvasId].data.datasets[0].backgroundColor=color; }
+        if(lockChart){
+          CHARTS[canvasId].data.datasets[0].backgroundColor=color;
+        }
         CHARTS[canvasId].update();
         return;
       }
@@ -159,7 +148,7 @@
         responsive:true,
         plugins:{legend:{display:false}},
         scales:{
-          x:{title:{display:true,text:"Time"},ticks:{maxRotation:45,minRotation:0,maxTicksLimit:8}},
+          x:{title:{display:true,text:"Time"},ticks:{maxRotation:45,minRotation:45}},
           y:{beginAtZero:true}
         }
       };
@@ -179,9 +168,40 @@
       mapDiv.innerHTML="";
       if(!locs.length){
         mapDiv.classList.add("empty");
-        mapDiv.textContent="No location data";
+        mapDiv.textContent="No location data available";
         return;
       }
       const latest=locs.at(-1);
       const map=L.map("map").setView([latest.lat,latest.lon],15);
-      L.tileLayer("https://{
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap contributors"}).addTo(map);
+      const path=locs.map(l=>[l.lat,l.lon]);
+      L.polyline(path,{color:"blue",weight:3,opacity:0.7}).addTo(map);
+      L.marker([latest.lat,latest.lon]).addTo(map).bindPopup(`🚲 ${new Date(latest.time).toLocaleString()}`).openPopup();
+      setTimeout(()=>map.invalidateSize(),200);
+    }
+
+    function exportCSV(){
+      if(!allData.length) return alert("No data");
+      const header=["topic","timestamp","battery","speed","mileage","lock_status","lat","lon"];
+      const rows=allData.map(m=>{
+        const p=m.payload||{};
+        const ts=p.timestamp?formatTimestamp(p.timestamp):"";
+        const lat=typeof p.lat==="number"?p.lat:(Array.isArray(p.coordinates)?p.coordinates[1]:"");
+        const lon=typeof p.lon==="number"?p.lon:(Array.isArray(p.coordinates)?p.coordinates[0]:"");
+        return [m.topic,ts,p.battery??"",p.speed??"",p.riding_mileage??"",p.lock_status??"",lat,lon].join(",");
+      });
+      const csv=[header.join(","),...rows].join("\n");
+      const blob=new Blob([csv],{type:"text/csv"});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");
+      a.href=url;a.download="bike_data.csv";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+    }
+
+    document.getElementById("exportBtn").addEventListener("click",exportCSV);
+
+    // Initial load + periodic refresh (5 s)
+    loadDashboard();
+    setInterval(loadDashboard,5000);
+  </script>
+</body>
+</html>
