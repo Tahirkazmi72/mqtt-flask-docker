@@ -3,9 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <title>Bike Telemetry Dashboard</title>
+
+  <!-- Chart.js & Plugin for labels -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <style>
     * { box-sizing: border-box; }
     body { font-family: Arial, sans-serif; padding: 20px; }
@@ -67,7 +73,7 @@
 
         const lockMsgs = allData.filter(i => i.topic?.endsWith('lock') && i.payload);
 
-        // 🆕 Generate synthetic ISO 8601 timestamps with spacing
+        // Generate synthetic ISO 8601 timestamps spaced 1s apart
         const start = Date.now();
         const lbl = lockMsgs.map((_, i) => new Date(start + i * 1000).toISOString());
 
@@ -108,17 +114,38 @@
 
         new Chart('lockChart', {
           type: 'bar',
-          data: { labels: lbl, datasets: [{ data: lck, backgroundColor: lck.map(v => v ? '#2ecc71' : '#e74c3c') }] },
+          data: {
+            labels: lbl,
+            datasets: [{
+              data: lck,
+              backgroundColor: lck.map(v => v ? '#2ecc71' : '#e74c3c')
+            }]
+          },
           options: {
             ...base,
+            plugins: {
+              datalabels: {
+                anchor: 'end',
+                align: 'start',
+                font: { size: 18 },
+                formatter: (v) => v ? '🔓' : '🔒'
+              }
+            },
             scales: {
               ...base.scales,
-              y: { beginAtZero: true, max: 1, ticks: { callback: v => v ? 'Unlocked' : 'Locked' } }
+              y: {
+                beginAtZero: true,
+                max: 1,
+                ticks: {
+                  callback: v => v ? 'Unlocked' : 'Locked'
+                }
+              }
             }
-          }
+          },
+          plugins: [ChartDataLabels]
         });
-        setLabel('lockValue', lck.at(-1) ? 'Unlocked' : 'Locked');
 
+        setLabel('lockValue', lck.at(-1) ? 'Unlocked' : 'Locked');
         renderMap();
       } catch (err) {
         console.error(err);
