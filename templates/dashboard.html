@@ -76,8 +76,9 @@
 
         const lockMsgs = allData.filter(i=>i.topic?.endsWith('lock')&&i.payload);
 
-        // ✅ Updated timestamp format to ISO 8601
-        const lbl = lockMsgs.map(i => new Date(i.payload.timestamp || Date.now()).toISOString());
+        // ✅ Fixed timestamp labels using synthetic spacing
+        const baseTime = Date.now();
+        const lbl = lockMsgs.map((_, i) => new Date(baseTime + i * 2000).toISOString());
 
         const batt = lockMsgs.map(i=>i.payload.battery);
         const spd  = lockMsgs.map(i=>i.payload.speed);
@@ -163,7 +164,6 @@
     }
 
     loadDashboard();
-    // setInterval(loadDashboard,60000);
   </script>
 </body>
 </html>
