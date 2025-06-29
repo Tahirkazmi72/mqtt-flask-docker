@@ -3,15 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <title>Bike Telemetry Dashboard</title>
-
-  <!-- Chart.js & Datalabels plugin -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
-
-  <!-- Leaflet for map -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
   <style>
     * { box-sizing: border-box; }
     body { font-family: Arial, sans-serif; padding: 20px; }
@@ -112,14 +107,14 @@
         });
         setLabel('mileageValue', mil.at(-1), 'km');
 
-        // 🔐 Lock chart with only icons (no bars)
+        // Updated Lock chart (icons only, no bars)
         new Chart('lockChart', {
           type: 'bar',
           data: {
             labels: lbl,
             datasets: [{
               data: lck,
-              backgroundColor: 'transparent',
+              backgroundColor: 'transparent', // no bar fill
               borderWidth: 0
             }]
           },
