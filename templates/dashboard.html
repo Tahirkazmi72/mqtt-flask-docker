@@ -3,7 +3,6 @@
 <head>
   <meta charset="utf-8" />
   <title>Bike Telemetry Dashboard</title>
-  <!-- Chart.js & Leaflet CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -58,6 +57,7 @@
     function setLabel(id, value, unit=""){
       document.getElementById(id).textContent = (value ?? "--") + (value?` ${unit}`:"");
     }
+
     function LL(p){
       const lat = p.lat ?? p.latitude ?? (Array.isArray(p.coordinates)?p.coordinates[1]:null);
       const lon = p.lon ?? p.longitude ?? (Array.isArray(p.coordinates)?p.coordinates[0]:null);
@@ -76,7 +76,7 @@
 
         const lockMsgs = allData.filter(i=>i.topic?.endsWith('lock')&&i.payload);
 
-        // ✅ Fixed timestamp labels using synthetic spacing
+        // ✅ Synthetic timestamps
         const baseTime = Date.now();
         const lbl = lockMsgs.map((_, i) => new Date(baseTime + i * 2000).toISOString());
 
@@ -114,8 +114,7 @@
         setLabel('lockValue',lck.at(-1)?'Unlocked':'Locked');
 
         renderMap();
-
-      }catch(e){
+      } catch(e){
         console.error(e);
         document.body.insertAdjacentHTML('beforeend',`<p style='color:red;'>${e.message}</p>`)
       }
@@ -127,6 +126,7 @@
       div.classList.add('empty');
       div.textContent='No location data yet…';
     }
+
     function renderMap(){
       const locMsgs = allData.filter(m=>{
         if(!m.payload) return false;
@@ -149,7 +149,17 @@
       pathPolyline=L.polyline(path,{color:'blue',weight:4,opacity:.7}).addTo(mapInstance);
       mapInstance.fitBounds(pathPolyline.getBounds(),{padding:[20,20]});
 
-      marker=L.marker([last.lat,last.lon]).addTo(mapInstance).bindPopup(`🚲 Latest<br>${new Date(last.time).toLocaleString()}`).openPopup();
+      // ✅ Custom Cycle Emoji Marker
+      const cycleIcon = L.divIcon({
+        html: "🚲",
+        className: '',
+        iconSize: [24, 24]
+      });
+
+      marker = L.marker([last.lat, last.lon], { icon: cycleIcon })
+        .addTo(mapInstance)
+        .bindPopup(`🚲 Latest<br>${new Date(last.time).toLocaleString()}`)
+        .openPopup();
     }
 
     function exportCSV(){
