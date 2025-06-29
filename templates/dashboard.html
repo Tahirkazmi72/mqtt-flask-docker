@@ -4,11 +4,11 @@
   <meta charset="utf-8" />
   <title>Bike Telemetry Dashboard</title>
 
-  <!-- Chart.js & Plugin for labels -->
+  <!-- Chart.js & Datalabels plugin -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
 
-  <!-- Leaflet -->
+  <!-- Leaflet for map -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -112,34 +112,32 @@
         });
         setLabel('mileageValue', mil.at(-1), 'km');
 
+        // 🔐 Lock chart with only icons (no bars)
         new Chart('lockChart', {
           type: 'bar',
           data: {
             labels: lbl,
             datasets: [{
               data: lck,
-              backgroundColor: lck.map(v => v ? '#2ecc71' : '#e74c3c')
+              backgroundColor: 'transparent',
+              borderWidth: 0
             }]
           },
           options: {
-            ...base,
+            responsive: true,
             plugins: {
+              legend: { display: false },
               datalabels: {
                 anchor: 'end',
                 align: 'start',
-                font: { size: 18 },
-                formatter: (v) => v ? '🔓' : '🔒'
+                font: { size: 20 },
+                formatter: (v) => v ? '🔓' : '🔒',
+                color: (ctx) => ctx.raw ? '#2ecc71' : '#e74c3c'
               }
             },
             scales: {
-              ...base.scales,
-              y: {
-                beginAtZero: true,
-                max: 1,
-                ticks: {
-                  callback: v => v ? 'Unlocked' : 'Locked'
-                }
-              }
+              x: { title: { display: true, text: 'Time' }, ticks: { maxTicksLimit: 10 } },
+              y: { display: false }
             }
           },
           plugins: [ChartDataLabels]
