@@ -10,20 +10,17 @@
     * { box-sizing: border-box }
     body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 20px }
     h1 { margin-bottom: .25rem }
-    .chart-row {
+
+    .summary-panel-row {
       display: flex;
-      align-items: center;
-      margin: 30px 0;
+      justify-content: space-between;
       gap: 12px;
+      margin: 20px 0;
+      flex-wrap: wrap;
     }
-    .chart-row canvas {
-      flex: 0 0 80%;
-      max-width: 80%;
-      height: 300px;
-    }
-    .value-panel {
-      flex: 0 0 20%;
-      max-width: 20%;
+    .summary-panel-row .value-panel {
+      flex: 1 1 22%;
+      max-width: 22%;
       background: #f9f9f9;
       border: 1px solid #ddd;
       border-radius: 6px;
@@ -31,17 +28,29 @@
       text-align: center;
       font-size: 0.9rem;
     }
-    .value-panel h2 {
+    .summary-panel-row .value-panel h2 {
       margin: 4px 0 6px;
       font-size: 1rem;
       color: #333;
       font-weight: bold;
     }
-    .value-panel p {
+    .summary-panel-row .value-panel p {
       margin: 0;
       font-size: 1.1rem;
       font-weight: 700;
     }
+
+    .chart-row {
+      display: flex;
+      justify-content: center;
+      margin: 30px 0;
+    }
+    .chart-row canvas {
+      width: 100%;
+      max-width: 1000px;
+      height: 300px;
+    }
+
     #map {
       height: 350px;
       border: 1px solid #ccc;
@@ -55,13 +64,10 @@
       color: #777;
       font-style: italic;
     }
-    @media(max-width:800px){
-      .chart-row {
-        flex-direction: column;
-      }
-      .chart-row canvas,
-      .value-panel {
-        flex: 0 0 100%;
+
+    @media(max-width: 800px) {
+      .summary-panel-row .value-panel {
+        flex: 1 1 100%;
         max-width: 100%;
       }
     }
@@ -72,22 +78,19 @@
   <h2 id="lockerId">Locker ID: --</h2>
   <h3 id="macAddress">MAC Address: --</h3>
 
-  <div class="chart-row">
-    <canvas id="batteryChart"></canvas>
+  <!-- Summary value panels -->
+  <div class="summary-panel-row">
     <div class="value-panel"><h2>🔋 Battery</h2><p id="batteryValue">-- %</p></div>
-  </div>
-  <div class="chart-row">
-    <canvas id="speedChart"></canvas>
     <div class="value-panel"><h2>💨 Speed</h2><p id="speedValue">-- km/h</p></div>
-  </div>
-  <div class="chart-row">
-    <canvas id="mileageChart"></canvas>
     <div class="value-panel"><h2>🛣️ Mileage</h2><p id="mileageValue">-- km</p></div>
-  </div>
-  <div class="chart-row">
-    <canvas id="lockChart"></canvas>
     <div class="value-panel"><h2>🔒 Lock</h2><p id="lockValue">--</p></div>
   </div>
+
+  <!-- Charts -->
+  <div class="chart-row"><canvas id="batteryChart"></canvas></div>
+  <div class="chart-row"><canvas id="speedChart"></canvas></div>
+  <div class="chart-row"><canvas id="mileageChart"></canvas></div>
+  <div class="chart-row"><canvas id="lockChart"></canvas></div>
 
   <h2>📍 Live Location Map</h2>
   <div id="map" class="empty">No location data yet…</div>
