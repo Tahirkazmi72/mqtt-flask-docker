@@ -6,21 +6,64 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
   <style>
-    *{box-sizing:border-box}
-    body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:20px}
-    h1{margin-bottom:.25rem}
-    .chart-row{display:flex;align-items:center;margin:40px 0;gap:12px}
-    .chart-row canvas{flex:0 0 75%;max-width:75%}
-    .value-panel{flex:0 0 25%;max-width:25%;background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:12px;text-align:center}
-    .value-panel h3{margin:4px 0 6px;font-size:1.1rem;color:#333;font-weight:bold}
-    .value-panel p{margin:0;font-size:1.25rem;font-weight:700}
-    #map{height:350px;border:1px solid #ccc;margin-top:40px;width:100%}
-    #map.empty{display:flex;align-items:center;justify-content:center;color:#777;font-style:italic}
+    * { box-sizing: border-box }
+    body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 20px }
+    h1 { margin-bottom: .25rem }
+    .chart-row {
+      display: flex;
+      align-items: center;
+      margin: 30px 0;
+      gap: 12px;
+    }
+    .chart-row canvas {
+      flex: 0 0 80%;
+      max-width: 80%;
+      height: 300px;
+    }
+    .value-panel {
+      flex: 0 0 20%;
+      max-width: 20%;
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 8px;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+    .value-panel h2 {
+      margin: 4px 0 6px;
+      font-size: 1rem;
+      color: #333;
+      font-weight: bold;
+    }
+    .value-panel p {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+    #map {
+      height: 350px;
+      border: 1px solid #ccc;
+      margin-top: 40px;
+      width: 100%;
+    }
+    #map.empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #777;
+      font-style: italic;
+    }
     @media(max-width:800px){
-      .chart-row{flex-direction:column}
-      .chart-row canvas,.value-panel{flex:0 0 100%;max-width:100%}
+      .chart-row {
+        flex-direction: column;
+      }
+      .chart-row canvas,
+      .value-panel {
+        flex: 0 0 100%;
+        max-width: 100%;
+      }
     }
   </style>
 </head>
@@ -31,19 +74,19 @@
 
   <div class="chart-row">
     <canvas id="batteryChart"></canvas>
-    <div class="value-panel"><h2>🔋 Current Battery Status</h2><p id="batteryValue">-- %</p></div>
+    <div class="value-panel"><h2>🔋 Battery</h2><p id="batteryValue">-- %</p></div>
   </div>
   <div class="chart-row">
     <canvas id="speedChart"></canvas>
-    <div class="value-panel"><h2>💨 Current Speed Status</h2><p id="speedValue">-- km/h</p></div>
+    <div class="value-panel"><h2>💨 Speed</h2><p id="speedValue">-- km/h</p></div>
   </div>
   <div class="chart-row">
     <canvas id="mileageChart"></canvas>
-    <div class="value-panel"><h2>🛣️ current Remaing Mileage Status</h2><p id="mileageValue">-- km</p></div>
+    <div class="value-panel"><h2>🛣️ Mileage</h2><p id="mileageValue">-- km</p></div>
   </div>
   <div class="chart-row">
     <canvas id="lockChart"></canvas>
-    <div class="value-panel"><h2>🔒 Current Lock Status</h2><p id="lockValue">--</p></div>
+    <div class="value-panel"><h2>🔒 Lock</h2><p id="lockValue">--</p></div>
   </div>
 
   <h2>📍 Live Location Map</h2>
@@ -79,7 +122,11 @@
 
         const lockMsgs = allData.filter(i => i.topic?.endsWith('lock') && i.payload);
         const baseTime = Date.now();
-        const lbl = lockMsgs.map((_, i) => new Date(baseTime + i * 2000).toISOString());
+        const lbl = lockMsgs.map((_, i) => {
+          const d = new Date(baseTime + i * 2000);
+          return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+        });
+
         const batt = lockMsgs.map(i => i.payload.battery);
         const spd = lockMsgs.map(i => i.payload.speed);
         const mil = lockMsgs.map(i => i.payload.riding_mileage);
@@ -91,7 +138,14 @@
             legend: { display: true, position: 'top' }
           },
           scales: {
-            x: { title: { display: true, text: 'Time' } },
+            x: {
+              title: { display: true, text: 'Time' },
+              ticks: {
+                maxRotation: 30,
+                minRotation: 30,
+                autoSkip: true
+              }
+            },
             y: { beginAtZero: true }
           }
         };
@@ -101,7 +155,7 @@
           data: {
             labels: lbl,
             datasets: [{
-              label: 'Battery (%)',
+              label: 'Battery',
               data: batt,
               borderColor: '#27ae60',
               tension: .4
@@ -116,7 +170,7 @@
           data: {
             labels: lbl,
             datasets: [{
-              label: 'Speed (km/h)',
+              label: 'Speed',
               data: spd,
               borderColor: '#2980b9',
               tension: .4
@@ -131,7 +185,7 @@
           data: {
             labels: lbl,
             datasets: [{
-              label: 'Mileage (km)',
+              label: 'Mileage',
               data: mil,
               borderColor: '#e67e22',
               tension: .4
@@ -146,7 +200,7 @@
           data: {
             labels: lbl,
             datasets: [{
-              label: 'Lock Status',
+              label: 'Lock',
               data: lck,
               backgroundColor: lck.map(v => v ? '#2ecc71' : '#e74c3c')
             }]
