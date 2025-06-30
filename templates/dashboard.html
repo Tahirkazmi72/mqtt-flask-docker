@@ -14,7 +14,7 @@
     .chart-row{display:flex;align-items:center;margin:40px 0;gap:12px}
     .chart-row canvas{flex:0 0 75%;max-width:75%}
     .value-panel{flex:0 0 25%;max-width:25%;background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:12px;text-align:center}
-    .value-panel h3{margin:4px 0 6px;font-size:1rem;color:#333}
+    .value-panel h3{margin:4px 0 6px;font-size:1.1rem;color:#333;font-weight:bold}
     .value-panel p{margin:0;font-size:1.25rem;font-weight:700}
     #map{height:350px;border:1px solid #ccc;margin-top:40px;width:100%}
     #map.empty{display:flex;align-items:center;justify-content:center;color:#777;font-style:italic}
@@ -31,19 +31,19 @@
 
   <div class="chart-row">
     <canvas id="batteryChart"></canvas>
-    <div class="value-panel"><h3>Battery</h3><p id="batteryValue">-- %</p></div>
+    <div class="value-panel"><h3>🔋 Battery</h3><p id="batteryValue">-- %</p></div>
   </div>
   <div class="chart-row">
     <canvas id="speedChart"></canvas>
-    <div class="value-panel"><h3>Speed</h3><p id="speedValue">-- km/h</p></div>
+    <div class="value-panel"><h3>💨 Speed</h3><p id="speedValue">-- km/h</p></div>
   </div>
   <div class="chart-row">
     <canvas id="mileageChart"></canvas>
-    <div class="value-panel"><h3>Mileage</h3><p id="mileageValue">-- km</p></div>
+    <div class="value-panel"><h3>🛣️ Mileage</h3><p id="mileageValue">-- km</p></div>
   </div>
   <div class="chart-row">
     <canvas id="lockChart"></canvas>
-    <div class="value-panel"><h3>Lock</h3><p id="lockValue">--</p></div>
+    <div class="value-panel"><h3>🔒 Lock</h3><p id="lockValue">--</p></div>
   </div>
 
   <h2>📍 Live Location Map</h2>
