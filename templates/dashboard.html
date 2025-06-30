@@ -78,7 +78,6 @@
   <h2 id="lockerId">Locker ID: --</h2>
   <h3 id="macAddress">MAC Address: --</h3>
 
-  <!-- Summary value panels -->
   <div class="summary-panel-row">
     <div class="value-panel"><h2>🔋 Battery</h2><p id="batteryValue">-- %</p></div>
     <div class="value-panel"><h2>💨 Speed</h2><p id="speedValue">-- km/h</p></div>
@@ -86,14 +85,13 @@
     <div class="value-panel"><h2>🔒 Lock</h2><p id="lockValue">--</p></div>
   </div>
 
-  <!-- Charts -->
+  <h2>📍 Live Location Map</h2>
+  <div id="map" class="empty">No location data yet…</div>
+
   <div class="chart-row"><canvas id="batteryChart"></canvas></div>
   <div class="chart-row"><canvas id="speedChart"></canvas></div>
   <div class="chart-row"><canvas id="mileageChart"></canvas></div>
   <div class="chart-row"><canvas id="lockChart"></canvas></div>
-
-  <h2>📍 Live Location Map</h2>
-  <div id="map" class="empty">No location data yet…</div>
 
   <button onclick="exportCSV()" style="margin-top:30px;padding:10px 20px;font-size:1rem;cursor:pointer">📥 Export CSV</button>
 
@@ -140,16 +138,24 @@
           plugins: {
             legend: { display: true, position: 'top' }
           },
+          layout: {
+            padding: {
+              top: 10,
+              bottom: 0
+            }
+          },
           scales: {
             x: {
-              title: { display: true, text: 'Time' },
               ticks: {
-                maxRotation: 30,
-                minRotation: 30,
-                autoSkip: true
+                maxRotation: 20,
+                minRotation: 20,
+                padding: 6,
               }
             },
-            y: { beginAtZero: true }
+            y: {
+              beginAtZero: true,
+              ticks: { padding: 4 }
+            }
           }
         };
 
