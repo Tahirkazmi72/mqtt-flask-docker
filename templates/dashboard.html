@@ -72,17 +72,14 @@
         allData = await res.json();
         if (!Array.isArray(allData) || !allData.length) throw new Error('No data');
 
-        // ✅ Set MAC and Locker ID (fallback to static value)
         const idMsg = allData.find(d => d?.payload?.mac || d?.payload?.id);
         const mac = idMsg?.payload?.mac ?? idMsg?.payload?.id ?? '8C:59:DD:00:01:B0';
         document.getElementById('lockerId').textContent = `Locker ID: ${mac}`;
         document.getElementById('macAddress').textContent = `MAC Address: ${mac}`;
 
         const lockMsgs = allData.filter(i => i.topic?.endsWith('lock') && i.payload);
-
         const baseTime = Date.now();
         const lbl = lockMsgs.map((_, i) => new Date(baseTime + i * 2000).toISOString());
-
         const batt = lockMsgs.map(i => i.payload.battery);
         const spd = lockMsgs.map(i => i.payload.speed);
         const mil = lockMsgs.map(i => i.payload.riding_mileage);
@@ -90,27 +87,81 @@
 
         const base = {
           responsive: true,
-          plugins: { legend: { display: false } },
-          scales: { x: { title: { display: true, text: 'Time' } }, y: { beginAtZero: true } }
+          plugins: {
+            legend: { display: true, position: 'top' }
+          },
+          scales: {
+            x: { title: { display: true, text: 'Time' } },
+            y: { beginAtZero: true }
+          }
         };
 
-        new Chart('batteryChart', { type: 'line', data: { labels: lbl, datasets: [{ data: batt, borderColor: '#27ae60', tension: .4 }] }, options: base });
+        new Chart('batteryChart', {
+          type: 'line',
+          data: {
+            labels: lbl,
+            datasets: [{
+              label: 'Battery (%)',
+              data: batt,
+              borderColor: '#27ae60',
+              tension: .4
+            }]
+          },
+          options: base
+        });
         setLabel('batteryValue', batt.at(-1), '%');
 
-        new Chart('speedChart', { type: 'line', data: { labels: lbl, datasets: [{ data: spd, borderColor: '#2980b9', tension: .4 }] }, options: base });
+        new Chart('speedChart', {
+          type: 'line',
+          data: {
+            labels: lbl,
+            datasets: [{
+              label: 'Speed (km/h)',
+              data: spd,
+              borderColor: '#2980b9',
+              tension: .4
+            }]
+          },
+          options: base
+        });
         setLabel('speedValue', spd.at(-1), 'km/h');
 
-        new Chart('mileageChart', { type: 'line', data: { labels: lbl, datasets: [{ data: mil, borderColor: '#e67e22', tension: .4 }] }, options: base });
+        new Chart('mileageChart', {
+          type: 'line',
+          data: {
+            labels: lbl,
+            datasets: [{
+              label: 'Mileage (km)',
+              data: mil,
+              borderColor: '#e67e22',
+              tension: .4
+            }]
+          },
+          options: base
+        });
         setLabel('mileageValue', mil.at(-1), 'km');
 
         new Chart('lockChart', {
           type: 'bar',
-          data: { labels: lbl, datasets: [{ data: lck, backgroundColor: lck.map(v => v ? '#2ecc71' : '#e74c3c') }] },
+          data: {
+            labels: lbl,
+            datasets: [{
+              label: 'Lock Status',
+              data: lck,
+              backgroundColor: lck.map(v => v ? '#2ecc71' : '#e74c3c')
+            }]
+          },
           options: {
             ...base,
             scales: {
               ...base.scales,
-              y: { beginAtZero: true, max: 1, ticks: { callback: v => v ? 'Unlocked' : 'Locked' } }
+              y: {
+                beginAtZero: true,
+                max: 1,
+                ticks: {
+                  callback: v => v ? 'Unlocked' : 'Locked'
+                }
+              }
             }
           }
         });
@@ -124,7 +175,10 @@
     }
 
     function resetMap() {
-      if (mapInstance) { mapInstance.remove(); mapInstance = null; }
+      if (mapInstance) {
+        mapInstance.remove();
+        mapInstance = null;
+      }
       const div = document.getElementById('map');
       div.classList.add('empty');
       div.textContent = 'No location data yet…';
@@ -136,7 +190,10 @@
         const { lat, lon } = LL(m.payload);
         return lat !== null && lon !== null;
       });
-      if (!locMsgs.length) { resetMap(); return; }
+      if (!locMsgs.length) {
+        resetMap();
+        return;
+      }
 
       const locs = locMsgs.map(m => ({ ...LL(m.payload), time: m.payload.timestamp || Date.now() }));
       const last = locs.at(-1);
@@ -146,7 +203,9 @@
       mapDiv.textContent = '';
 
       mapInstance = L.map('map', { attributionControl: false }).setView([last.lat, last.lon], 15);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapInstance);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+      }).addTo(mapInstance);
 
       const path = locs.map(l => [l.lat, l.lon]);
       pathPolyline = L.polyline(path, { color: 'blue', weight: 4, opacity: .7 }).addTo(mapInstance);
@@ -170,7 +229,15 @@
       allData.forEach(m => {
         const p = m.payload || {};
         const { lat, lon } = LL(p);
-        rows.push([p.timestamp || '', p.battery ?? '', p.speed ?? '', p.riding_mileage ?? '', p.lock_status ?? '', lat ?? '', lon ?? '']);
+        rows.push([
+          p.timestamp || '',
+          p.battery ?? '',
+          p.speed ?? '',
+          p.riding_mileage ?? '',
+          p.lock_status ?? '',
+          lat ?? '',
+          lon ?? ''
+        ]);
       });
       const blob = new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' });
       const a = document.createElement('a');
