@@ -44,18 +44,18 @@
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       grid-template-rows: repeat(2, auto);
-      gap: 20px;
+      gap: 15px;
       margin: 30px 0;
     }
 
     .chart-grid canvas {
       width: 100%;
-      aspect-ratio: 4 / 3;
+      aspect-ratio: 4 / 2.5; /* smaller height */
       max-width: 100%;
       border: 1px solid #ccc;
       border-radius: 8px;
       background: #fff;
-      padding: 10px;
+      padding: 6px;
     }
 
     #map {
@@ -92,7 +92,7 @@
   <div class="summary-panel-row">
     <div class="value-panel"><h2>🔋 Battery</h2><p id="batteryValue">-- %</p></div>
     <div class="value-panel"><h2>💨 Speed</h2><p id="speedValue">-- km/h</p></div>
-    <div class="value-panel"><h2>🛣️ Mileage</h2><p id="mileageValue">-- km</p></div>
+    <div class="value-panel"><h2>🚣️ Mileage</h2><p id="mileageValue">-- km</p></div>
     <div class="value-panel"><h2>🔒 Lock</h2><p id="lockValue">--</p></div>
   </div>
 
@@ -108,221 +108,6 @@
     <canvas id="lockChart"></canvas>
   </div>
 
-  <button onclick="exportCSV()" style="margin-top:30px;padding:10px 20px;font-size:1rem;cursor:pointer">📥 Export CSV</button>
-
-  <script>
-    let allData = [];
-    let mapInstance, pathPolyline, marker;
-
-    function setLabel(id, value, unit = "") {
-      document.getElementById(id).textContent = (value ?? "--") + (value ? ` ${unit}` : "");
-    }
-
-    function LL(p) {
-      const lat = p.lat ?? p.latitude ?? (Array.isArray(p.coordinates) ? p.coordinates[1] : null);
-      const lon = p.lon ?? p.longitude ?? (Array.isArray(p.coordinates) ? p.coordinates[0] : null);
-      return { lat, lon };
-    }
-
-    async function loadDashboard() {
-      try {
-        const res = await fetch('/data');
-        if (!res.ok) throw new Error(`Server ${res.status}`);
-        allData = await res.json();
-        if (!Array.isArray(allData) || !allData.length) throw new Error('No data');
-
-        const idMsg = allData.find(d => d?.payload?.mac || d?.payload?.id);
-        const mac = idMsg?.payload?.mac ?? idMsg?.payload?.id ?? '8C:59:DD:00:01:B0';
-        document.getElementById('lockerId').textContent = `Locker ID: ${mac}`;
-        document.getElementById('macAddress').textContent = `MAC Address: ${mac}`;
-
-        const lockMsgs = allData.filter(i => i.topic?.endsWith('lock') && i.payload);
-        const baseTime = Date.now();
-        const lbl = lockMsgs.map((_, i) => {
-          const d = new Date(baseTime + i * 2000);
-          return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
-        });
-
-        const batt = lockMsgs.map(i => i.payload.battery);
-        const spd = lockMsgs.map(i => i.payload.speed);
-        const mil = lockMsgs.map(i => i.payload.riding_mileage);
-        const lck = lockMsgs.map(i => i.payload.lock_status === 'Unlocked' ? 1 : 0);
-
-        const base = {
-          responsive: true,
-          plugins: {
-            legend: { display: true, position: 'top' }
-          },
-          layout: {
-            padding: { top: 10, bottom: 0 }
-          },
-          scales: {
-            x: {
-              ticks: {
-                maxRotation: 20,
-                minRotation: 20,
-                padding: 6
-              }
-            },
-            y: {
-              beginAtZero: true,
-              ticks: { padding: 4 }
-            }
-          }
-        };
-
-        new Chart('batteryChart', {
-          type: 'line',
-          data: {
-            labels: lbl,
-            datasets: [{
-              label: 'Battery',
-              data: batt,
-              borderColor: '#27ae60',
-              tension: .4
-            }]
-          },
-          options: base
-        });
-        setLabel('batteryValue', batt.at(-1), '%');
-
-        new Chart('speedChart', {
-          type: 'line',
-          data: {
-            labels: lbl,
-            datasets: [{
-              label: 'Speed',
-              data: spd,
-              borderColor: '#2980b9',
-              tension: .4
-            }]
-          },
-          options: base
-        });
-        setLabel('speedValue', spd.at(-1), 'km/h');
-
-        new Chart('mileageChart', {
-          type: 'line',
-          data: {
-            labels: lbl,
-            datasets: [{
-              label: 'Mileage',
-              data: mil,
-              borderColor: '#e67e22',
-              tension: .4
-            }]
-          },
-          options: base
-        });
-        setLabel('mileageValue', mil.at(-1), 'km');
-
-        new Chart('lockChart', {
-          type: 'bar',
-          data: {
-            labels: lbl,
-            datasets: [{
-              label: 'Lock',
-              data: lck,
-              backgroundColor: lck.map(v => v ? '#2ecc71' : '#e74c3c')
-            }]
-          },
-          options: {
-            ...base,
-            scales: {
-              ...base.scales,
-              y: {
-                beginAtZero: true,
-                max: 1,
-                ticks: {
-                  callback: v => v ? 'Unlocked' : 'Locked'
-                }
-              }
-            }
-          }
-        });
-        setLabel('lockValue', lck.at(-1) ? 'Unlocked' : 'Locked');
-
-        renderMap();
-      } catch (e) {
-        console.error(e);
-        document.body.insertAdjacentHTML('beforeend', `<p style='color:red;'>${e.message}</p>`);
-      }
-    }
-
-    function resetMap() {
-      if (mapInstance) {
-        mapInstance.remove();
-        mapInstance = null;
-      }
-      const div = document.getElementById('map');
-      div.classList.add('empty');
-      div.textContent = 'No location data yet…';
-    }
-
-    function renderMap() {
-      const locMsgs = allData.filter(m => {
-        if (!m.payload) return false;
-        const { lat, lon } = LL(m.payload);
-        return lat !== null && lon !== null;
-      });
-      if (!locMsgs.length) {
-        resetMap();
-        return;
-      }
-
-      const locs = locMsgs.map(m => ({ ...LL(m.payload), time: m.payload.timestamp || Date.now() }));
-      const last = locs.at(-1);
-
-      const mapDiv = document.getElementById('map');
-      mapDiv.classList.remove('empty');
-      mapDiv.textContent = '';
-
-      mapInstance = L.map('map', { attributionControl: false }).setView([last.lat, last.lon], 15);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-      }).addTo(mapInstance);
-
-      const path = locs.map(l => [l.lat, l.lon]);
-      pathPolyline = L.polyline(path, { color: 'blue', weight: 4, opacity: .7 }).addTo(mapInstance);
-      mapInstance.fitBounds(pathPolyline.getBounds(), { padding: [20, 20] });
-
-      const cycleIcon = L.divIcon({
-        html: "🚲",
-        className: '',
-        iconSize: [34, 34]
-      });
-
-      marker = L.marker([last.lat, last.lon], { icon: cycleIcon })
-        .addTo(mapInstance)
-        .bindPopup(`🚲 Latest<br>${new Date(last.time).toLocaleString()}`)
-        .openPopup();
-    }
-
-    function exportCSV() {
-      if (!allData.length) return alert('No data');
-      const rows = [['timestamp', 'battery', 'speed', 'mileage', 'lock_status', 'lat', 'lon']];
-      allData.forEach(m => {
-        const p = m.payload || {};
-        const { lat, lon } = LL(p);
-        rows.push([
-          p.timestamp || '',
-          p.battery ?? '',
-          p.speed ?? '',
-          p.riding_mileage ?? '',
-          p.lock_status ?? '',
-          lat ?? '',
-          lon ?? ''
-        ]);
-      });
-      const blob = new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'bike_data.csv';
-      a.click();
-      URL.revokeObjectURL(a.href);
-    }
-
-    loadDashboard();
-  </script>
+  <button onclick="exportCSV()" style="margin-top:30px;padding:10px 20px;font-size:1rem;cursor:pointer">📅 Export CSV</button>
 </body>
 </html>
