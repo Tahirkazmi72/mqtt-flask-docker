@@ -40,15 +40,22 @@
       font-weight: 700;
     }
 
-    .chart-row {
-      display: flex;
-      justify-content: center;
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(2, auto);
+      gap: 20px;
       margin: 30px 0;
     }
-    .chart-row canvas {
+
+    .chart-grid canvas {
       width: 100%;
-      max-width: 1000px;
-      height: 300px;
+      aspect-ratio: 4 / 3;
+      max-width: 100%;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: #fff;
+      padding: 10px;
     }
 
     #map {
@@ -70,6 +77,9 @@
         flex: 1 1 100%;
         max-width: 100%;
       }
+      .chart-grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -86,15 +96,17 @@
     <div class="value-panel"><h2>🔒 Lock</h2><p id="lockValue">--</p></div>
   </div>
 
-  <!-- Map comes before charts -->
+  <!-- Map -->
   <h2>📍 Live Location Map</h2>
   <div id="map" class="empty">No location data yet…</div>
 
-  <!-- Charts -->
-  <div class="chart-row"><canvas id="batteryChart"></canvas></div>
-  <div class="chart-row"><canvas id="speedChart"></canvas></div>
-  <div class="chart-row"><canvas id="mileageChart"></canvas></div>
-  <div class="chart-row"><canvas id="lockChart"></canvas></div>
+  <!-- Charts in 2x2 Grid -->
+  <div class="chart-grid">
+    <canvas id="batteryChart"></canvas>
+    <canvas id="speedChart"></canvas>
+    <canvas id="mileageChart"></canvas>
+    <canvas id="lockChart"></canvas>
+  </div>
 
   <button onclick="exportCSV()" style="margin-top:30px;padding:10px 20px;font-size:1rem;cursor:pointer">📥 Export CSV</button>
 
