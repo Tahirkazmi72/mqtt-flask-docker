@@ -77,17 +77,23 @@
       height: 180px !important;
     }
 
+    .download-container {
+      text-align: center;
+      padding: 20px;
+    }
+
     .download-btn {
-      position: absolute;
-      top: 80px;
-      right: 30px;
-      padding: 8px 16px;
+      padding: 10px 20px;
       background: #2ecc71;
-      border: none;
       color: #fff;
+      border: none;
       border-radius: 5px;
+      font-size: 1rem;
       cursor: pointer;
-      z-index: 999;
+    }
+
+    .download-btn:hover {
+      background: #27ae60;
     }
   </style>
 </head>
@@ -99,8 +105,6 @@
       <div id="macAddress">MAC Address: --</div>
     </div>
   </header>
-
-  <button class="download-btn" onclick="downloadCSV()">⬇️ Download CSV</button>
 
   <div class="main-content">
     <div class="map-container" id="map">Loading map...</div>
@@ -117,6 +121,11 @@
     <div class="chart-box"><canvas id="speedChart"></canvas></div>
     <div class="chart-box"><canvas id="mileageChart"></canvas></div>
     <div class="chart-box"><canvas id="lockChart"></canvas></div>
+  </div>
+
+  <!-- Centered Download Button Below Charts -->
+  <div class="download-container">
+    <button class="download-btn" onclick="downloadCSV()">⬇️ Download CSV</button>
   </div>
 
   <script>
