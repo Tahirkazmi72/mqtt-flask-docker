@@ -76,6 +76,19 @@
       width: 100% !important;
       height: 180px !important;
     }
+
+    .download-btn {
+      position: absolute;
+      top: 80px;
+      right: 30px;
+      padding: 8px 16px;
+      background: #2ecc71;
+      border: none;
+      color: #fff;
+      border-radius: 5px;
+      cursor: pointer;
+      z-index: 999;
+    }
   </style>
 </head>
 <body>
@@ -86,6 +99,8 @@
       <div id="macAddress">MAC Address: --</div>
     </div>
   </header>
+
+  <button class="download-btn" onclick="downloadCSV()">⬇️ Download CSV</button>
 
   <div class="main-content">
     <div class="map-container" id="map">Loading map...</div>
@@ -231,6 +246,33 @@
         .addTo(mapInstance)
         .bindPopup(`🚲 Latest<br>${new Date(last.time).toLocaleString()}`)
         .openPopup();
+    }
+
+    function downloadCSV() {
+      if (!allData.length) {
+        alert("No data available to download!");
+        return;
+      }
+
+      const flatten = obj =>
+        Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, typeof v === 'object' ? JSON.stringify(v) : v]));
+
+      const rows = allData.map(d => flatten({ ...d, ...d.payload }));
+      const headers = Array.from(new Set(rows.flatMap(r => Object.keys(r))));
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => headers.map(field => JSON.stringify(row[field] ?? '')).join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'bike_telemetry_data.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
 
     loadDashboard();
