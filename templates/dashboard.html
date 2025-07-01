@@ -123,7 +123,6 @@
     <div class="chart-box"><canvas id="lockChart"></canvas></div>
   </div>
 
-  <!-- Centered Download Button Below Charts -->
   <div class="download-container">
     <button class="download-btn" onclick="downloadCSV()">⬇️ Download CSV</button>
   </div>
@@ -263,21 +262,32 @@
         return;
       }
 
-      const flatten = obj =>
-        Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, typeof v === 'object' ? JSON.stringify(v) : v]));
+      const rows = allData.map(entry => {
+        const p = entry.payload || {};
+        const coords = p.coordinates || [];
+        return {
+          timestamp: p.timestamp || '',
+          battery: p.battery ?? '',
+          lock_status: p.lock_status || '',
+          speed: p.speed ?? '',
+          riding_mileage: p.riding_mileage ?? '',
+          remaining_mileage: p.remaining_mileage ?? '',
+          lat: p.lat || coords[1] || '',
+          lon: p.lon || coords[0] || ''
+        };
+      });
 
-      const rows = allData.map(d => flatten({ ...d, ...d.payload }));
-      const headers = Array.from(new Set(rows.flatMap(r => Object.keys(r))));
+      const headers = Object.keys(rows[0]);
       const csvContent = [
         headers.join(','),
-        ...rows.map(row => headers.map(field => JSON.stringify(row[field] ?? '')).join(','))
+        ...rows.map(row => headers.map(h => JSON.stringify(row[h] ?? '')).join(','))
       ].join('\n');
 
       const blob = new Blob([csvContent], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'bike_telemetry_data.csv';
+      a.download = 'bike_telemetry_clean.csv';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
