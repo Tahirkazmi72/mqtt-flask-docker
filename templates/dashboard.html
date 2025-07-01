@@ -8,7 +8,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Arial, sans-serif; background: #000; color: #fff; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #000; color: #fff; }
 
     header {
       display: flex;
@@ -18,12 +18,11 @@
       color: #000;
       padding: 10px 20px;
     }
+
     header h1 {
       font-size: 1.4rem;
-      display: flex;
-      align-items: center;
-      gap: 10px;
     }
+
     .id-info {
       text-align: right;
       font-weight: bold;
@@ -37,13 +36,8 @@
 
     .map-container {
       flex: 3;
-      background: #3498db;
       height: 500px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #000;
-      font-weight: bold;
+      border: 2px solid #3498db;
     }
 
     .status-panel {
@@ -52,13 +46,15 @@
       flex-direction: column;
       gap: 12px;
     }
+
     .status-panel .panel {
       background: #fff;
       color: #000;
-      padding: 10px;
+      padding: 12px;
       border-radius: 6px;
       text-align: center;
-      font-size: 1rem;
+      font-size: 1.1rem;
+      font-weight: bold;
     }
 
     .charts-row {
@@ -67,15 +63,18 @@
       padding: 20px;
       gap: 20px;
     }
+
     .charts-row .chart-box {
       flex: 1;
-      background: #3498db;
-      height: 200px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      background: #fff;
+      border-radius: 8px;
+      padding: 10px;
       color: #000;
-      font-weight: bold;
+    }
+
+    canvas {
+      width: 100% !important;
+      height: 180px !important;
     }
   </style>
 </head>
@@ -89,12 +88,12 @@
   </header>
 
   <div class="main-content">
-    <div class="map-container" id="map">MAP</div>
+    <div class="map-container" id="map">Loading map...</div>
     <div class="status-panel">
-      <div class="panel">🔋 Battery<br><span id="batteryValue">0%</span></div>
-      <div class="panel">🛣️ Mileage<br><span id="mileageValue">0 km</span></div>
-      <div class="panel">🔒 Lock<br><span id="lockValue">Locked</span></div>
-      <div class="panel">💨 Speed<br><span id="speedValue">0 km/h</span></div>
+      <div class="panel">🔋 Battery<br><span id="batteryValue">--%</span></div>
+      <div class="panel">🛣️ Mileage<br><span id="mileageValue">-- km</span></div>
+      <div class="panel">🔒 Lock<br><span id="lockValue">--</span></div>
+      <div class="panel">💨 Speed<br><span id="speedValue">-- km/h</span></div>
     </div>
   </div>
 
@@ -127,7 +126,7 @@
         if (!Array.isArray(allData) || !allData.length) throw new Error('No data');
 
         const idMsg = allData.find(d => d?.payload?.mac || d?.payload?.id);
-        const mac = idMsg?.payload?.mac ?? idMsg?.payload?.id ?? '8C:59:DD:00:01:B0';
+        const mac = idMsg?.payload?.mac ?? idMsg?.payload?.id ?? 'N/A';
         document.getElementById('lockerId').textContent = `Locker ID: ${mac}`;
         document.getElementById('macAddress').textContent = `MAC Address: ${mac}`;
 
@@ -135,7 +134,7 @@
         const baseTime = Date.now();
         const lbl = lockMsgs.map((_, i) => {
           const d = new Date(baseTime + i * 2000);
-          return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+          return `${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
         });
 
         const batt = lockMsgs.map(i => i.payload.battery);
@@ -143,71 +142,30 @@
         const mil = lockMsgs.map(i => i.payload.riding_mileage);
         const lck = lockMsgs.map(i => i.payload.lock_status === 'Unlocked' ? 1 : 0);
 
-        const base = {
+        const baseOptions = {
           responsive: true,
-          plugins: {
-            legend: { display: true, position: 'top' }
-          },
-          layout: {
-            padding: { top: 10, bottom: 0 }
-          },
-          scales: {
-            x: {
-              ticks: {
-                maxRotation: 20,
-                minRotation: 20,
-                padding: 6
-              }
-            },
-            y: {
-              beginAtZero: true,
-              ticks: { padding: 4 }
-            }
-          }
+          plugins: { legend: { display: true, position: 'top' } },
+          scales: { y: { beginAtZero: true } }
         };
 
         new Chart('batteryChart', {
           type: 'line',
-          data: {
-            labels: lbl,
-            datasets: [{
-              label: 'Battery',
-              data: batt,
-              borderColor: '#27ae60',
-              tension: .4
-            }]
-          },
-          options: base
+          data: { labels: lbl, datasets: [{ label: 'Battery', data: batt, borderColor: '#2ecc71', tension: .4 }] },
+          options: baseOptions
         });
         setLabel('batteryValue', batt.at(-1), '%');
 
         new Chart('speedChart', {
           type: 'line',
-          data: {
-            labels: lbl,
-            datasets: [{
-              label: 'Speed',
-              data: spd,
-              borderColor: '#2980b9',
-              tension: .4
-            }]
-          },
-          options: base
+          data: { labels: lbl, datasets: [{ label: 'Speed', data: spd, borderColor: '#2980b9', tension: .4 }] },
+          options: baseOptions
         });
         setLabel('speedValue', spd.at(-1), 'km/h');
 
         new Chart('mileageChart', {
           type: 'line',
-          data: {
-            labels: lbl,
-            datasets: [{
-              label: 'Mileage',
-              data: mil,
-              borderColor: '#e67e22',
-              tension: .4
-            }]
-          },
-          options: base
+          data: { labels: lbl, datasets: [{ label: 'Mileage', data: mil, borderColor: '#e67e22', tension: .4 }] },
+          options: baseOptions
         });
         setLabel('mileageValue', mil.at(-1), 'km');
 
@@ -216,15 +174,14 @@
           data: {
             labels: lbl,
             datasets: [{
-              label: 'Lock',
+              label: 'Lock Status',
               data: lck,
               backgroundColor: lck.map(v => v ? '#2ecc71' : '#e74c3c')
             }]
           },
           options: {
-            ...base,
+            ...baseOptions,
             scales: {
-              ...base.scales,
               y: {
                 beginAtZero: true,
                 max: 1,
@@ -240,18 +197,8 @@
         renderMap();
       } catch (e) {
         console.error(e);
-        document.body.insertAdjacentHTML('beforeend', `<p style='color:red;'>${e.message}</p>`);
+        document.getElementById('map').innerHTML = '🚫 Data Error: ' + e.message;
       }
-    }
-
-    function resetMap() {
-      if (mapInstance) {
-        mapInstance.remove();
-        mapInstance = null;
-      }
-      const div = document.getElementById('map');
-      div.classList.add('empty');
-      div.textContent = 'No location data yet…';
     }
 
     function renderMap() {
@@ -260,17 +207,10 @@
         const { lat, lon } = LL(m.payload);
         return lat !== null && lon !== null;
       });
-      if (!locMsgs.length) {
-        resetMap();
-        return;
-      }
+      if (!locMsgs.length) return;
 
       const locs = locMsgs.map(m => ({ ...LL(m.payload), time: m.payload.timestamp || Date.now() }));
       const last = locs.at(-1);
-
-      const mapDiv = document.getElementById('map');
-      mapDiv.classList.remove('empty');
-      mapDiv.textContent = '';
 
       mapInstance = L.map('map', { attributionControl: false }).setView([last.lat, last.lon], 15);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -282,7 +222,7 @@
       mapInstance.fitBounds(pathPolyline.getBounds(), { padding: [20, 20] });
 
       const cycleIcon = L.divIcon({
-        html: "🚲",
+        html: \"🚲\",
         className: '',
         iconSize: [34, 34]
       });
