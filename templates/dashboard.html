@@ -7,102 +7,119 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Arial, sans-serif; background: #000; color: #fff; }
+    * { box-sizing: border-box }
+    body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 20px }
+    h1 { margin-bottom: .25rem }
 
-    header {
+    .summary-panel-row {
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      background: #fff;
-      color: #000;
-      padding: 10px 20px;
-    }
-
-    header h1 {
-      font-size: 1.4rem;
-    }
-
-    .id-info {
-      text-align: right;
-      font-weight: bold;
-    }
-
-    .main-content {
-      display: flex;
-      padding: 20px;
-      gap: 20px;
-    }
-
-    .map-container {
-      flex: 3;
-      height: 500px;
-      border: 2px solid #3498db;
-    }
-
-    .status-panel {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
       gap: 12px;
+      margin: 20px 0;
+      flex-wrap: wrap;
     }
-
-    .status-panel .panel {
-      background: #fff;
-      color: #000;
-      padding: 12px;
+    .summary-panel-row .value-panel {
+      flex: 1 1 22%;
+      max-width: 22%;
+      background: #f9f9f9;
+      border: 1px solid #ddd;
       border-radius: 6px;
+      padding: 8px;
       text-align: center;
-      font-size: 1.1rem;
+      font-size: 0.9rem;
+    }
+    .summary-panel-row .value-panel h2 {
+      margin: 4px 0 6px;
+      font-size: 1rem;
+      color: #333;
       font-weight: bold;
     }
+    .summary-panel-row .value-panel p {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
 
-    .charts-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 20px;
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(2, auto);
       gap: 20px;
+      margin: 30px 0;
     }
 
-    .charts-row .chart-box {
-      flex: 1;
-      background: #fff;
+    .chart-grid canvas {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      max-width: 100%;
+      border: 1px solid #ccc;
       border-radius: 8px;
+      background: #fff;
       padding: 10px;
-      color: #000;
     }
 
-    canvas {
-      width: 100% !important;
-      height: 180px !important;
+    #map {
+      height: 350px;
+      border: 1px solid #ccc;
+      margin-top: 40px;
+      width: 100%;
+    }
+    #map.empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #777;
+      font-style: italic;
+    }
+
+    @media(max-width: 800px) {
+      .summary-panel-row .value-panel {
+        flex: 1 1 100%;
+        max-width: 100%;
+      }
+      .chart-grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1>📊 Bike Telemetry Dashboard</h1>
-    <div class="id-info">
-      <div id="lockerId">Locker ID: --</div>
-      <div id="macAddress">MAC Address: --</div>
-    </div>
-  </header>
+  <h1>📊 Bike Telemetry Dashboard</h1>
 
-  <div class="main-content">
-    <div class="map-container" id="map">Loading map...</div>
-    <div class="status-panel">
-      <div class="panel">🔋 Battery<br><span id="batteryValue">--%</span></div>
-      <div class="panel">🛣️ Mileage<br><span id="mileageValue">-- km</span></div>
-      <div class="panel">🔒 Lock<br><span id="lockValue">--</span></div>
-      <div class="panel">💨 Speed<br><span id="speedValue">-- km/h</span></div>
+  <!-- Professor Information -->
+  <div style="display: flex; align-items: center; margin-bottom: 20px; gap: 15px;">
+    <img src="professor.jpg" alt="Professor José Fernandes" 
+         style="width: 100px; height: 100px; border-radius: 12px; object-fit: cover; border: 2px solid #007bff; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+    <div>
+      <h2 style="margin: 0 0 5px 0;">Prof. José Fernandes</h2>
+      <p style="margin: 0;">📧 <a href="mailto:jose.fernandes@example.com">jose.fernandes@example.com</a></p>
     </div>
   </div>
 
-  <div class="charts-row">
-    <div class="chart-box"><canvas id="batteryChart"></canvas></div>
-    <div class="chart-box"><canvas id="speedChart"></canvas></div>
-    <div class="chart-box"><canvas id="mileageChart"></canvas></div>
-    <div class="chart-box"><canvas id="lockChart"></canvas></div>
+  <h2 id="lockerId">Locker ID: --</h2>
+  <h3 id="macAddress">MAC Address: --</h3>
+
+  <!-- Status Panels -->
+  <div class="summary-panel-row">
+    <div class="value-panel"><h2>🔋 Battery</h2><p id="batteryValue">-- %</p></div>
+    <div class="value-panel"><h2>💨 Speed</h2><p id="speedValue">-- km/h</p></div>
+    <div class="value-panel"><h2>🛣️ Mileage</h2><p id="mileageValue">-- km</p></div>
+    <div class="value-panel"><h2>🔒 Lock</h2><p id="lockValue">--</p></div>
   </div>
+
+  <!-- Map -->
+  <h2>📍 Live Location Map</h2>
+  <div id="map" class="empty">No location data yet…</div>
+
+  <!-- Charts in 2x2 Grid -->
+  <div class="chart-grid">
+    <canvas id="batteryChart"></canvas>
+    <canvas id="speedChart"></canvas>
+    <canvas id="mileageChart"></canvas>
+    <canvas id="lockChart"></canvas>
+  </div>
+
+  <button onclick="exportCSV()" style="margin-top:30px;padding:10px 20px;font-size:1rem;cursor:pointer">📥 Export CSV</button>
 
   <script>
     let allData = [];
@@ -126,7 +143,7 @@
         if (!Array.isArray(allData) || !allData.length) throw new Error('No data');
 
         const idMsg = allData.find(d => d?.payload?.mac || d?.payload?.id);
-        const mac = idMsg?.payload?.mac ?? idMsg?.payload?.id ?? 'N/A';
+        const mac = idMsg?.payload?.mac ?? idMsg?.payload?.id ?? '8C:59:DD:00:01:B0';
         document.getElementById('lockerId').textContent = `Locker ID: ${mac}`;
         document.getElementById('macAddress').textContent = `MAC Address: ${mac}`;
 
@@ -134,7 +151,7 @@
         const baseTime = Date.now();
         const lbl = lockMsgs.map((_, i) => {
           const d = new Date(baseTime + i * 2000);
-          return `${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+          return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
         });
 
         const batt = lockMsgs.map(i => i.payload.battery);
@@ -142,30 +159,71 @@
         const mil = lockMsgs.map(i => i.payload.riding_mileage);
         const lck = lockMsgs.map(i => i.payload.lock_status === 'Unlocked' ? 1 : 0);
 
-        const baseOptions = {
+        const base = {
           responsive: true,
-          plugins: { legend: { display: true, position: 'top' } },
-          scales: { y: { beginAtZero: true } }
+          plugins: {
+            legend: { display: true, position: 'top' }
+          },
+          layout: {
+            padding: { top: 10, bottom: 0 }
+          },
+          scales: {
+            x: {
+              ticks: {
+                maxRotation: 20,
+                minRotation: 20,
+                padding: 6
+              }
+            },
+            y: {
+              beginAtZero: true,
+              ticks: { padding: 4 }
+            }
+          }
         };
 
         new Chart('batteryChart', {
           type: 'line',
-          data: { labels: lbl, datasets: [{ label: 'Battery', data: batt, borderColor: '#2ecc71', tension: .4 }] },
-          options: baseOptions
+          data: {
+            labels: lbl,
+            datasets: [{
+              label: 'Battery',
+              data: batt,
+              borderColor: '#27ae60',
+              tension: .4
+            }]
+          },
+          options: base
         });
         setLabel('batteryValue', batt.at(-1), '%');
 
         new Chart('speedChart', {
           type: 'line',
-          data: { labels: lbl, datasets: [{ label: 'Speed', data: spd, borderColor: '#2980b9', tension: .4 }] },
-          options: baseOptions
+          data: {
+            labels: lbl,
+            datasets: [{
+              label: 'Speed',
+              data: spd,
+              borderColor: '#2980b9',
+              tension: .4
+            }]
+          },
+          options: base
         });
         setLabel('speedValue', spd.at(-1), 'km/h');
 
         new Chart('mileageChart', {
           type: 'line',
-          data: { labels: lbl, datasets: [{ label: 'Mileage', data: mil, borderColor: '#e67e22', tension: .4 }] },
-          options: baseOptions
+          data: {
+            labels: lbl,
+            datasets: [{
+              label: 'Mileage',
+              data: mil,
+              borderColor: '#e67e22',
+              tension: .4
+            }]
+          },
+          options: base
         });
         setLabel('mileageValue', mil.at(-1), 'km');
 
@@ -174,14 +232,15 @@
           data: {
             labels: lbl,
             datasets: [{
-              label: 'Lock Status',
+              label: 'Lock',
               data: lck,
               backgroundColor: lck.map(v => v ? '#2ecc71' : '#e74c3c')
             }]
           },
           options: {
-            ...baseOptions,
+            ...base,
             scales: {
+              ...base.scales,
               y: {
                 beginAtZero: true,
                 max: 1,
@@ -197,8 +256,18 @@
         renderMap();
       } catch (e) {
         console.error(e);
-        document.getElementById('map').innerHTML = '🚫 Data Error: ' + e.message;
+        document.body.insertAdjacentHTML('beforeend', `<p style='color:red;'>${e.message}</p>`);
       }
+    }
+
+    function resetMap() {
+      if (mapInstance) {
+        mapInstance.remove();
+        mapInstance = null;
+      }
+      const div = document.getElementById('map');
+      div.classList.add('empty');
+      div.textContent = 'No location data yet…';
     }
 
     function renderMap() {
@@ -207,10 +276,17 @@
         const { lat, lon } = LL(m.payload);
         return lat !== null && lon !== null;
       });
-      if (!locMsgs.length) return;
+      if (!locMsgs.length) {
+        resetMap();
+        return;
+      }
 
       const locs = locMsgs.map(m => ({ ...LL(m.payload), time: m.payload.timestamp || Date.now() }));
       const last = locs.at(-1);
+
+      const mapDiv = document.getElementById('map');
+      mapDiv.classList.remove('empty');
+      mapDiv.textContent = '';
 
       mapInstance = L.map('map', { attributionControl: false }).setView([last.lat, last.lon], 15);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -222,7 +298,7 @@
       mapInstance.fitBounds(pathPolyline.getBounds(), { padding: [20, 20] });
 
       const cycleIcon = L.divIcon({
-        html: \"🚲\",
+        html: "🚲",
         className: '',
         iconSize: [34, 34]
       });
@@ -231,6 +307,30 @@
         .addTo(mapInstance)
         .bindPopup(`🚲 Latest<br>${new Date(last.time).toLocaleString()}`)
         .openPopup();
+    }
+
+    function exportCSV() {
+      if (!allData.length) return alert('No data');
+      const rows = [['timestamp', 'battery', 'speed', 'mileage', 'lock_status', 'lat', 'lon']];
+      allData.forEach(m => {
+        const p = m.payload || {};
+        const { lat, lon } = LL(p);
+        rows.push([
+          p.timestamp || '',
+          p.battery ?? '',
+          p.speed ?? '',
+          p.riding_mileage ?? '',
+          p.lock_status ?? '',
+          lat ?? '',
+          lon ?? ''
+        ]);
+      });
+      const blob = new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'bike_data.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
     }
 
     loadDashboard();
