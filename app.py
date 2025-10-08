@@ -1,79 +1,75 @@
-from flask import Flask, jsonify, render_template
-import threading
-import json
 import os
+import json
+import ssl
+import threading
+import logging
+from flask import Flask, jsonify
 import paho.mqtt.client as mqtt
 
 app = Flask(__name__)
-DATA_FILE = "data.json"
-MQTT_BROKER = "broker.emqx.io"
-MQTT_TOPIC = "bike/#"  # Subscribe to all bike data
 
-# MQTT message handler
+# ---------- Logging ----------
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
+
+# ---------- Config ----------
+MQTT_BROKER = os.getenv("MQTT_BROKER", "broker.emqx.io")
+MQTT_PORT = int(os.getenv("MQTT_PORT", 8883))
+MQTT_TOPIC = os.getenv("MQTT_TOPIC", "mbike/#")
+DATA_FILE = os.getenv("DATA_FILE", "/tmp/data.json")
+
+# ---------- MQTT Handlers ----------
+def on_connect(client, userdata, flags, rc):
+    if rc == 0:
+        logging.info(f"✅ Connected to MQTT broker {MQTT_BROKER}:{MQTT_PORT}")
+        client.subscribe(MQTT_TOPIC)
+        logging.info(f"📡 Subscribed to topic: {MQTT_TOPIC}")
+    else:
+        logging.error(f"❌ MQTT connection failed, code={rc}")
+
 def on_message(client, userdata, msg):
     try:
-        data = json.loads(msg.payload)
+        payload = msg.payload.decode()
+        logging.info(f"📨 Received: {msg.topic} -> {payload}")
+        data = { "topic": msg.topic, "payload": payload }
+        with open(DATA_FILE, "w") as f:
+            json.dump(data, f)
     except Exception as e:
-        print("JSON decode error:", e)
-        data = {"value": msg.payload.decode()}
+        logging.exception(f"Error writing message: {e}")
 
-    record = {
-        "topic": msg.topic,
-        "payload": data
-    }
-
-    # Read existing data
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
-            try:
-                existing_data = json.load(f)
-            except:
-                existing_data = []
-    else:
-        existing_data = []
-
-    # Append new record
-    existing_data.append(record)
-
-    # Write updated data
-    with open(DATA_FILE, "w") as f:
-        json.dump(existing_data, f)
-
-# MQTT listener thread
-def mqtt_listen():
+def mqtt_thread():
     client = mqtt.Client()
-    client.connect(MQTT_BROKER, 1883)
-    client.subscribe(MQTT_TOPIC)
-    client.on_message = on_message
-    client.loop_forever()
+    try:
+        client.tls_set(cert_reqs=ssl.CERT_NONE)
+        client.tls_insecure_set(True)
+        client.on_connect = on_connect
+        client.on_message = on_message
+        logging.info("🚀 Starting MQTT client thread...")
+        client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
+        client.loop_forever()
+    except Exception as e:
+        logging.exception(f"MQTT loop failed: {e}")
 
-# Start MQTT in background
-threading.Thread(target=mqtt_listen, daemon=True).start()
+# Start MQTT thread before Flask starts
+threading.Thread(target=mqtt_thread, daemon=True).start()
 
-# Dashboard route
+# ---------- Flask Routes ----------
 @app.route("/")
-def dashboard():
-    return render_template("dashboard.html")
+def home():
+    return "MQTT Flask App is running!"
 
-# API route
 @app.route("/data")
 def get_data():
     if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
-            try:
-                return jsonify(json.load(f))
-            except:
-                return jsonify({"error": "JSON read error"}), 500
+        try:
+            with open(DATA_FILE, "r") as f:
+                data = json.load(f)
+            return jsonify(data)
+        except Exception as e:
+            logging.exception("Error reading data file")
+            return jsonify({"error": "failed to read data"}), 500
     else:
         return jsonify({"error": "No data"}), 404
 
-# App start
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
-
-
-
-
-
-
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
