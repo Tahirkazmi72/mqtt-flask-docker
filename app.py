@@ -1,78 +1,104 @@
 from flask import Flask, jsonify, render_template
-import threading
-import json
-import os
+import threading, json, os, tempfile
 import paho.mqtt.client as mqtt
 
 app = Flask(__name__)
+
 DATA_FILE = "data.json"
 MQTT_BROKER = "broker.emqx.io"
-MQTT_TOPIC = "mbike/#"  # Subscribe to all bike data
+MQTT_PORT = 1883
+MQTT_TOPIC = "mbike/#"   # <-- correct for your topic
 
-# MQTT message handler
-def on_message(client, userdata, msg):
+_lock = threading.Lock()
+_mqtt_started = False
+
+def atomic_write(path, obj):
+    """Write JSON atomically to avoid partial file/corruption."""
+    d = os.path.dirname(path) or "."
+    import tempfile, os
+    fd, tmp = tempfile.mkstemp(prefix=".tmp_", dir=d, text=True)
     try:
-        data = json.loads(msg.payload)
-    except Exception as e:
-        print("JSON decode error:", e)
-        data = {"value": msg.payload.decode()}
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(obj, f, ensure_ascii=False)
+        os.replace(tmp, path)
+    finally:
+        try:
+            os.remove(tmp)
+        except FileNotFoundError:
+            pass
 
-    record = {
-        "topic": msg.topic,
-        "payload": data
-    }
-
-    # Read existing data
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
+def append_record(record):
+    with _lock:
+        data = []
+        if os.path.exists(DATA_FILE):
             try:
-                existing_data = json.load(f)
-            except:
-                existing_data = []
+                with open(DATA_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if not isinstance(data, list):
+                        data = []
+            except Exception:
+                data = []
+        data.append(record)
+        atomic_write(DATA_FILE, data)
+
+def on_connect(client, userdata, flags, rc, properties=None):
+    print("MQTT connected rc=", rc)
+    if rc == 0:
+        client.subscribe(MQTT_TOPIC, qos=1)
+        print("Subscribed to", MQTT_TOPIC)
     else:
-        existing_data = []
+        print("Connect failed")
 
-    # Append new record
-    existing_data.append(record)
+def on_message(client, userdata, msg):
+    # DEBUG: always print what we got
+    print("MSG:", msg.topic, msg.payload[:100])
 
-    # Write updated data
-    with open(DATA_FILE, "w") as f:
-        json.dump(existing_data, f)
+    # Try JSON, else store string
+    payload_text = None
+    try:
+        payload_text = msg.payload.decode("utf-8", errors="replace")
+        data = json.loads(payload_text)
+    except Exception:
+        data = {"value": payload_text if payload_text is not None else str(msg.payload)}
 
-# MQTT listener thread
+    record = {"topic": msg.topic, "payload": data}
+    append_record(record)
+
 def mqtt_listen():
-    client = mqtt.Client()
-    client.connect(MQTT_BROKER, 1883)
-    client.subscribe(MQTT_TOPIC)
+    client = mqtt.Client(protocol=mqtt.MQTTv311)
+    client.on_connect = on_connect
     client.on_message = on_message
-    client.loop_forever()
+    client.reconnect_delay_set(min_delay=1, max_delay=30)
+    client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
+    client.loop_forever(retry_first_connection=True)
 
-# Start MQTT in background
-threading.Thread(target=mqtt_listen, daemon=True).start()
+@app.before_first_request
+def start_mqtt_once():
+    global _mqtt_started
+    if not _mqtt_started:
+        threading.Thread(target=mqtt_listen, daemon=True).start()
+        _mqtt_started = True
+        print("MQTT thread started")
 
-# Dashboard route
 @app.route("/")
 def dashboard():
     return render_template("dashboard.html")
 
-# API route
 @app.route("/data")
 def get_data():
     if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
+        with _lock:
             try:
-                return jsonify(json.load(f))
-            except:
+                with open(DATA_FILE, "r", encoding="utf-8") as f:
+                    return jsonify(json.load(f))
+            except Exception as e:
+                print("JSON read error:", e)
                 return jsonify({"error": "JSON read error"}), 500
-    else:
-        return jsonify({"error": "No data"}), 404
+    return jsonify({"error": "No data"}), 404
 
-# App start
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
-
-
-
-
-
+    # dev run (debug=False prevents double-start)
+    if not os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            f.write("[]")
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
