@@ -7,7 +7,7 @@ import paho.mqtt.client as mqtt
 app = Flask(__name__)
 DATA_FILE = "data.json"
 MQTT_BROKER = "broker.emqx.io"
-MQTT_TOPIC = "mbike/#"  # Subscribe to all bike data
+MQTT_TOPIC = "bike/#"  # Subscribe to all bike data
 
 # MQTT message handler
 def on_message(client, userdata, msg):
@@ -71,6 +71,7 @@ def get_data():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
 
 
 
